@@ -21,6 +21,7 @@ import java.util.Iterator;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.Arrays;
 
 public class InternalSolver implements SmtSolver {
 
@@ -31,6 +32,7 @@ public class InternalSolver implements SmtSolver {
   public SmtSolver.Answer checkSatisfiability(SmtProblem problem) {
     //return new Answer.YES(new Valuation());
     Constraint constraints = problem.queryCombinedConstraint();
+    System.out.println(constraints);
     ArrayList<Constraint> children = new ArrayList<>();
     if (constraints instanceof Conjunction) {
       Conjunction conjunction = (Conjunction) constraints;
@@ -40,8 +42,10 @@ public class InternalSolver implements SmtSolver {
     }
     ArrayList<IntegerExpression> expressions = new ArrayList<IntegerExpression>();
     for (int i =0; i < children.size(); i++){
+      //aanpassen naar switch
       Constraint child = children.get(i);
       if (child instanceof Is0){
+        System.out.println("instance of is0" + child.toString());
         Is0 func = (Is0) child;
         expressions.add(func.queryExpression().simplify());
       }
@@ -50,11 +54,15 @@ public class InternalSolver implements SmtSolver {
         expressions.add(func.queryExpression().simplify());
       }
     }
+    System.out.println("expressions: " +expressions);
     //for every expression except the objective function we add a slack variable
-    for (int i = 1; i < expressions.size(); i++){
-      expressions.set(i, addSlackVariable(problem, expressions.get(i)));
-    }
-    ArrayList<ArrayList<Double>> simpTab = makeSimplexTableau (problem, expressions);
+    
+    expressions = addIndividualSlackVariables(problem, expressions);
+    expressions = addUniversalSlackVariable(problem, expressions);
+    System.out.println("final expr: " +expressions);
+    //ArrayList<ArrayList<Double>> simpTab = makeSimplexTableau (problem, expressions);
+    ArrayList<ArrayList<Double>> simpTab = new ArrayList<>();
+    printSimplexTableau(simpTab);
     simplexMethod(simpTab);
     return new Answer.MAYBE("not implemented yet");
 
@@ -71,8 +79,25 @@ public class InternalSolver implements SmtSolver {
   }
 
 
-  public IntegerExpression addSlackVariable (SmtProblem problem, IntegerExpression expr){
-    return SmtFactory.createAddition(SmtFactory.createMultiplication(SmtFactory.createValue(-1), problem.createIntegerVariable()), expr).simplify();
+  public ArrayList<IntegerExpression> addUniversalSlackVariable (SmtProblem problem, ArrayList<IntegerExpression> expressions){
+    IVar slackVariable = problem.createIntegerVariable("z");
+    for (int i =0; i < expressions.size(); i++){
+      expressions.set(i ,SmtFactory.createAddition(slackVariable, expressions.get(i)));
+    }
+    expressions.add(SmtFactory.createMultiplication(SmtFactory.createValue(-1), slackVariable).simplify());
+
+    return expressions;
+  }
+
+
+
+  public ArrayList<IntegerExpression> addIndividualSlackVariables (SmtProblem problem, ArrayList<IntegerExpression> expressions){
+    //with coefficient -1, not sure if thats correct
+    for (int i =0; i < expressions.size(); i++){
+      System.out.println(expressions.get(i).toString() + " " + expressions.get(i).getClass());
+      expressions.set(i, SmtFactory.createAddition(SmtFactory.createMultiplication(-1,problem.createIntegerVariable()).simplify(), expressions.get(i)));
+    }
+    return expressions;
   }
 
   public void collectVariables(Set<IVar> vars, IntegerExpression expr) {
@@ -118,6 +143,7 @@ public class InternalSolver implements SmtSolver {
         throw new Error("Expression of the form " + expr.toString() + " not supported!");
     }
   }
+  
   public ArrayList<ArrayList<Double>> makeSimplexTableau (SmtProblem problem, ArrayList<IntegerExpression> expressions){
     ArrayList<ArrayList<Double>> simplexTableau = new ArrayList<>();
     System.out.println(expressions);
@@ -125,29 +151,33 @@ public class InternalSolver implements SmtSolver {
     for (IntegerExpression expr : expressions){
       collectVariables(vars, expr);
     }
-    IntegerExpression obj_func = expressions.get(0);
-    expressions.remove(0);
-
-    System.out.println(vars);
-    
     for (IntegerExpression expr : expressions){
       ArrayList<Double> row = new ArrayList<>();
       for (IVar var : vars){
-        row.add( (double)getCount(var, expr)*-1);
+        row.add( (double)getCount(var, expr));
       }
       ArrayList<Double> list = new ArrayList<>();
       collectConstants(list, expr);
+      
       for (Double d : list){
         row.add(d);
       }
+      
       simplexTableau.add(row);
     }
-    ArrayList<Double> objFuncRow = new ArrayList<>();
-    for (IVar var: vars){
-      objFuncRow.add((double)getCount(var, obj_func));
-    }
-    objFuncRow.add(0.0);
-    simplexTableau.add(objFuncRow);
+    simplexTableau.get(simplexTableau.size()-1).add(0.0);
+    // ArrayList<Double> objFuncRow = new ArrayList<>();
+    // for (int i =0; i < simplexTableau.get(0).size(); i++){
+    //   objFuncRow.add(0.0);
+    // }
+    // objFuncRow.add(-1.0);
+    // objFuncRow.add(0.0);
+
+    // for (IVar var: vars){
+    //   objFuncRow.add((double)getCount(var, obj_func));
+    // }
+    // objFuncRow.add(0.0);
+    //simplexTableau.add(objFuncRow);
 
     return simplexTableau;
   }
@@ -174,17 +204,46 @@ public class InternalSolver implements SmtSolver {
   }
 
   public int pivotRow (int pivotColumn, ArrayList<ArrayList<Double>> matrix){
-    double lowestQuotient = matrix.get(0).get(matrix.get(0).size()-1)/ matrix.get(0).get(pivotColumn);
-    int lowestQuotientIndex = 0;    
-    for (int i =1; i < matrix.size()-1; i++){
-      if (matrix.get(i).get(pivotColumn) != 0){
-        if (matrix.get(i).get(matrix.get(i).size()-1) / matrix.get(i).get(pivotColumn) < lowestQuotient){
-          lowestQuotientIndex = i;
+    //use only non negative entries
+    int startIndex =0;
+    while (matrix.get(startIndex).get(matrix.get(startIndex).size()-1) <= 0 || matrix.get(startIndex).get(pivotColumn) <= 0){
+      startIndex++;
+      System.out.println("increasing start index " + startIndex);
+    } 
+    System.out.println("size: " + matrix.get(0).size());
+    if (startIndex== matrix.get(0).size()){
+      System.out.println("unbounded solution");
+      return 0;
+    }
+    else {
+      double lowestQuotient = matrix.get(startIndex).get(matrix.get(startIndex).size()-1) / matrix.get(startIndex).get(pivotColumn);
+      for (int i =startIndex; i < matrix.size()-1; i++){
+        if (matrix.get(i).get(pivotColumn) > 0 && matrix.get(i).get(matrix.get(i).size()-1) > 0){
+          System.out.println("dividing " + matrix.get(i).get(matrix.get(i).size()-1) + " and " + matrix.get(i).get(pivotColumn));
+          if (matrix.get(i).get(matrix.get(i).size()-1) / matrix.get(i).get(pivotColumn) < lowestQuotient){
+            System.out.println (matrix.get(i).get(matrix.get(i).size()-1) / matrix.get(i).get(pivotColumn) + " is smaller than " + lowestQuotient);
+            lowestQuotient = matrix.get(i).get(matrix.get(i).size()-1) / matrix.get(i).get(pivotColumn);
+            startIndex = i;
+          }
         }
       }
-
+      return startIndex;
     }
-    return lowestQuotientIndex;
+
+  }
+
+
+  public int allNegative(int pivotColumn, ArrayList<ArrayList<Double>> matrix){
+    int lowestIndex = 0;
+    double lowestQuotient = matrix.get(0).get(matrix.get(0).size()-1) / matrix.get(0).get(pivotColumn);
+    for (int i =0; i < matrix.size()-1; i++){
+      if (matrix.get(i).get(matrix.get(i).size()-1) / matrix.get(i).get(pivotColumn) < lowestQuotient){
+        lowestQuotient = matrix.get(i).get(matrix.get(i).size()-1) / matrix.get(i).get(pivotColumn);
+        lowestIndex = i;
+      }
+    }
+    return lowestIndex;
+
   }
 
   public void printSimplexTableau (ArrayList<ArrayList<Double>> simpTab){
@@ -196,31 +255,56 @@ public class InternalSolver implements SmtSolver {
       System.out.println("] ");
     }
   }
-
   public ArrayList<ArrayList<Double>> step (ArrayList<ArrayList<Double>> matrix, int pivotColumn, int pivotRow){
+    //set pivot element to 1
     double factor = matrix.get(pivotRow).get(pivotColumn);
-    for (int i = 0; i < matrix.size(); i++){
-      for (int j =0; j < matrix.get(i).size(); j++){
-        double newValue = matrix.get(i).get(j)/factor;
-        matrix.get(i).set(j, newValue);
-      }
+    for (int j =0; j < matrix.get(pivotRow).size(); j++){
+      double newValue = matrix.get(pivotRow).get(j)/factor;
+      matrix.get(pivotRow).set(j, newValue);
     }
-    for (int i =0; i < matrix.size(); i++){
-      if (i != pivotRow){
-        factor = matrix.get(i).get(pivotColumn);
-        System.out.println ("subtracting " + factor + " times, row " + pivotRow + " from row " + i);
-        for (int j =0; j < matrix.get(i).size(); j++){
-          double newValue = matrix.get(i).get(j)-(factor*matrix.get(pivotRow).get(j));
-          matrix.get(i).set(j,newValue);
+    //find first row that is not the pivot row
+    //gaat fout, could get i-i in row
+    //doe multiple of pivot row eraf
+    
+    for (int j =0; j < matrix.size(); j++){
+      if (j != pivotRow){
+        factor = matrix.get(pivotRow).get(pivotColumn)/matrix.get(j).get(pivotColumn);
+        System.out.println ("subtracting " + factor + " times row " + pivotRow + " from row " + j );
+        for (int k =0; k < matrix.get(j).size(); k++){
+          matrix.get(j).set(k,matrix.get(j).get(k)-factor*matrix.get(pivotRow).get(k));
         }
-
       }
     }
     printSimplexTableau(matrix);
     return matrix;
   }
+    // }
+    // factor = matrix.get(i).get(pivotColumn);
+    // System.out.println ("subtracting " + factor + " times, row " + pivotRow + " from row " + i);
+    // for (int j =0; j < matrix.get(i).size(); j++){
+    //   double newValue = matrix.get(i).get(j)-(factor*matrix.get(pivotRow).get(j));
+    //   matrix.get(i).set(j,newValue);
+    // }
+    
+
 
   public void simplexMethod(ArrayList<ArrayList<Double>> simpTab){
+    ArrayList<Double> row1 = new ArrayList<>(Arrays.asList(1.0, 3.0, 1.0, 1.0, 0.0, 0.0, 12.0));
+    ArrayList<Double> row2 = new ArrayList<>(Arrays.asList(1.0, 1.0, -1.0, 0.0, 1.0, 0.0, 10.0));
+    ArrayList<Double> row3 = new ArrayList<>(Arrays.asList(1.0, -1.0, 1.0, 0.0, 0.0, 1.0, 7.0));
+    ArrayList<Double> row4 = new ArrayList<>(Arrays.asList(0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0));
+    simpTab.add(row1);
+    simpTab.add(row2);
+    simpTab.add(row3);
+    simpTab.add(row4);
+    ArrayList<Integer> baseVariables = new ArrayList<>();
+    simpTab.get(1).set(1,-1.0);
+
+    for (int i=0; i < simpTab.size(); i++){
+      baseVariables.add(0);
+    }
+    System.out.println("base:" + baseVariables);
+    printSimplexTableau(simpTab);
     while (pivotFound(simpTab)){
       printSimplexTableau (simpTab);
       int pivotColumn= pivotColumn(simpTab);
@@ -228,6 +312,10 @@ public class InternalSolver implements SmtSolver {
 
       System.out.println("pivot row and column: " + pivotRow + " " + pivotColumn);
       simpTab = step(simpTab, pivotColumn, pivotRow);
+      baseVariables.set(pivotRow, pivotRow);
+      System.out.println(baseVariables);
     }
+
+
   }
 }
