@@ -57,15 +57,94 @@ public class InternalSolver implements SmtSolver {
     System.out.println("expressions: " +expressions);
     //for every expression except the objective function we add a slack variable
     
-    expressions = addIndividualSlackVariables(problem, expressions);
-    expressions = addUniversalSlackVariable(problem, expressions);
+    //expressions = addIndividualSlackVariables(problem, expressions);
+    IVar slackVariable = problem.createIntegerVariable("z");
+    expressions = addUniversalSlackVariable(slackVariable, problem, expressions);
     System.out.println("final expr: " +expressions);
+    if (!basicSolution(expressions)){
+      System.out.println("there is no basic solution");
+      expressions = findBasicSolution(expressions, slackVariable);
+      System.out.println(expressions);
+    }
+    if (basicSolution(expressions)){
+      System.out.println("we have a basic solution");
+    }
     //ArrayList<ArrayList<Double>> simpTab = makeSimplexTableau (problem, expressions);
-    ArrayList<ArrayList<Double>> simpTab = new ArrayList<>();
-    printSimplexTableau(simpTab);
-    simplexMethod(simpTab);
+    // ArrayList<ArrayList<Double>> simpTab = new ArrayList<>();
+    // printSimplexTableau(simpTab);
+    // simplexMethod(simpTab);
     return new Answer.MAYBE("not implemented yet");
 
+  }
+
+
+
+  public ArrayList<IntegerExpression> findBasicSolution (ArrayList<IntegerExpression> expressions, IVar slackVariable){
+    ArrayList<Double> list = new ArrayList<>();
+    for (IntegerExpression expr : expressions){
+      collectConstants(list, expr);
+    }
+    double lowestConstant = list.get(0);
+    int lowestConstantIndex = 0;
+    for (int i =1; i < list.size(); i++){
+      if (list.get(i) < lowestConstant){
+        lowestConstant = list.get(i);
+        lowestConstantIndex = i;
+      }
+    }  
+    return pivot (slackVariable, lowestConstantIndex, expressions);
+  }
+
+  public ArrayList<IntegerExpression> pivot (IVar slackVariable, int swap, ArrayList<IntegerExpression> expressions){
+    int count = getCount(slackVariable, expressions.get(swap));
+    IntegerExpression remove = SmtFactory.createMultiplication(count*-1, slackVariable);
+    IntegerExpression newExpr = SmtFactory.createAddition (expressions.get(swap), remove);
+    System.out.println("newexpr: " +newExpr.simplify());
+    newExpr = newExpr.negate().simplify();
+    
+    //now slackvariable needs to get replaced by newexpr
+    for (int i =1; i < expressions.size(); i++){
+      System.out.println("we are swapping " + slackVariable.toString() + " with " + newExpr.toString()+ " in the expression " + expressions.get(i).toString());
+      expressions.set(i,replace (expressions.get(i), slackVariable, newExpr));
+    }
+    System.out.println(expressions);
+
+    expressions.set(0, newExpr);
+    return expressions;
+
+  }
+
+
+  public IntegerExpression replace (IntegerExpression expr, IVar oldVar, IntegerExpression newExpr){
+    switch (expr) {
+      case IVar x: if (x == oldVar){
+        return newExpr; 
+      } else {
+        return x;
+      }
+      case IValue v: return v;
+      case CMult cm: return SmtFactory.createMultiplication(cm.queryConstant(), replace(cm.queryChild(), oldVar, newExpr)).simplify();
+      case Addition a:
+        System.out.println("i am in addition switch");
+        for (int i = 1; i <= a.numChildren(); i++) return SmtFactory.createAddition(replace(a.queryChild(i), oldVar, newExpr), replace(SmtFactory.createAddition(a, a.queryChild(i).negate()).simplify(), oldVar, newExpr)).simplify();
+      default:
+        throw new Error("Expression of the form " + expr.toString() + " not supported!");
+    }
+  }
+
+  public boolean basicSolution (ArrayList<IntegerExpression> expressions){
+    //returns true if there is a basic solution
+    ArrayList<Double> list = new ArrayList<>();
+    for (IntegerExpression expr : expressions){
+      collectConstants(list, expr);
+    }
+    for (Double constant : list){
+      if (constant < 0){
+        System.out.println("i have found constant < 0 : " + constant);
+        return false;
+      }
+    }
+    return true;
   }
 
   /**
@@ -79,12 +158,11 @@ public class InternalSolver implements SmtSolver {
   }
 
 
-  public ArrayList<IntegerExpression> addUniversalSlackVariable (SmtProblem problem, ArrayList<IntegerExpression> expressions){
-    IVar slackVariable = problem.createIntegerVariable("z");
+  public ArrayList<IntegerExpression> addUniversalSlackVariable (IVar slackVariable, SmtProblem problem, ArrayList<IntegerExpression> expressions){
     for (int i =0; i < expressions.size(); i++){
       expressions.set(i ,SmtFactory.createAddition(slackVariable, expressions.get(i)));
     }
-    expressions.add(SmtFactory.createMultiplication(SmtFactory.createValue(-1), slackVariable).simplify());
+    //expressions.add(SmtFactory.createMultiplication(SmtFactory.createValue(-1), slackVariable).simplify());
 
     return expressions;
   }
