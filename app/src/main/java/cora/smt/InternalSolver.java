@@ -57,17 +57,23 @@ public class InternalSolver implements SmtSolver {
     System.out.println("expressions: " +expressions);
     //for every expression except the objective function we add a slack variable
     
-    //expressions = addIndividualSlackVariables(problem, expressions);
+    expressions = addIndividualSlackVariables(problem, expressions);
     IVar slackVariable = problem.createIntegerVariable("z");
+    IntegerExpression objFunc = SmtFactory.createMultiplication(-1, slackVariable).simplify();
     expressions = addUniversalSlackVariable(slackVariable, problem, expressions);
+    expressions.add(0,objFunc);
     System.out.println("final expr: " +expressions);
     if (!basicSolution(expressions)){
       System.out.println("there is no basic solution");
       expressions = findBasicSolution(expressions, slackVariable);
-      System.out.println(expressions);
+      System.out.println("new expr: " + expressions);
     }
-    if (basicSolution(expressions)){
-      System.out.println("we have a basic solution");
+    if (positiveFactor(expressions.get(0))){
+      System.out.println("positive factor present");
+      IVar swap = findPositiveFactor(expressions.get(0), problem);
+      System.out.println ("swapping " + swap);
+      //IntegerExpression newExpr = findBound(swap, expressions);
+      //expressions = pivot(swap, newExpr, expressions);
     }
     //ArrayList<ArrayList<Double>> simpTab = makeSimplexTableau (problem, expressions);
     // ArrayList<ArrayList<Double>> simpTab = new ArrayList<>();
@@ -77,12 +83,39 @@ public class InternalSolver implements SmtSolver {
 
   }
 
+  public IVar findPositiveFactor (IntegerExpression expression, SmtProblem problem){
+    switch (expression) {
+      case IVar x: return x;
+      case CMult cm: if (cm.queryConstant() > 0){
+        return findPositiveFactor(cm.queryChild(), problem);
+      }
+      return SmtFactory.createIntegerVariable(problem); 
+      case Addition a:
+        for (int i = 1; i <= a.numChildren(); i++){
+          if (positiveFactor(a.queryChild(i))) {
+            findPositiveFactor(a.queryChild(i), problem);
+          }
+        } return SmtFactory.createIntegerVariable(problem);
+      default:
+        return SmtFactory.createIntegerVariable(problem);     
+    }
+  }
 
+  public boolean positiveFactor (IntegerExpression objFunc){
+    switch (objFunc) {
+      case IValue v: return false;
+      case CMult cm: return cm.queryConstant() > 0;
+      case Addition a:
+        for (int i = 1; i <= a.numChildren(); i++) return positiveFactor(a.queryChild(i)) || positiveFactor(SmtFactory.createAddition(a, a.queryChild(i).negate()).simplify());
+      default:
+        return false;     
+    }
+  }
 
   public ArrayList<IntegerExpression> findBasicSolution (ArrayList<IntegerExpression> expressions, IVar slackVariable){
     ArrayList<Double> list = new ArrayList<>();
-    for (IntegerExpression expr : expressions){
-      collectConstants(list, expr);
+    for (int i =1; i < expressions.size(); i++){
+      collectConstants(list, expressions.get(i));
     }
     double lowestConstant = list.get(0);
     int lowestConstantIndex = 0;
@@ -92,24 +125,24 @@ public class InternalSolver implements SmtSolver {
         lowestConstantIndex = i;
       }
     }  
-    return pivot (slackVariable, lowestConstantIndex, expressions);
+    System.out.println ("expression with lowest constant: " + expressions.get(lowestConstantIndex+1));
+    return pivot (slackVariable, expressions.get(lowestConstantIndex+1), expressions);
   }
 
-  public ArrayList<IntegerExpression> pivot (IVar slackVariable, int swap, ArrayList<IntegerExpression> expressions){
-    int count = getCount(slackVariable, expressions.get(swap));
-    IntegerExpression remove = SmtFactory.createMultiplication(count*-1, slackVariable);
-    IntegerExpression newExpr = SmtFactory.createAddition (expressions.get(swap), remove);
-    System.out.println("newexpr: " +newExpr.simplify());
-    newExpr = newExpr.negate().simplify();
+  public ArrayList<IntegerExpression> pivot (IVar slackVariable, IntegerExpression newExpr, ArrayList<IntegerExpression> expressions){
+    
+    //int count = getCount(slackVariable, expressions.get(swap));
+    IntegerExpression remove = SmtFactory.createAddition(slackVariable.negate(), newExpr).simplify();
+    System.out.println ("swapping "+ remove.toString() + " for " + slackVariable.toString() + "in expressions");
+    newExpr = remove.negate().simplify();
     
     //now slackvariable needs to get replaced by newexpr
-    for (int i =1; i < expressions.size(); i++){
+    for (int i =0; i < expressions.size(); i++){
       System.out.println("we are swapping " + slackVariable.toString() + " with " + newExpr.toString()+ " in the expression " + expressions.get(i).toString());
       expressions.set(i,replace (expressions.get(i), slackVariable, newExpr));
     }
+    expressions.add(1, newExpr);
     System.out.println(expressions);
-
-    expressions.set(0, newExpr);
     return expressions;
 
   }
@@ -125,7 +158,6 @@ public class InternalSolver implements SmtSolver {
       case IValue v: return v;
       case CMult cm: return SmtFactory.createMultiplication(cm.queryConstant(), replace(cm.queryChild(), oldVar, newExpr)).simplify();
       case Addition a:
-        System.out.println("i am in addition switch");
         for (int i = 1; i <= a.numChildren(); i++) return SmtFactory.createAddition(replace(a.queryChild(i), oldVar, newExpr), replace(SmtFactory.createAddition(a, a.queryChild(i).negate()).simplify(), oldVar, newExpr)).simplify();
       default:
         throw new Error("Expression of the form " + expr.toString() + " not supported!");
@@ -135,8 +167,8 @@ public class InternalSolver implements SmtSolver {
   public boolean basicSolution (ArrayList<IntegerExpression> expressions){
     //returns true if there is a basic solution
     ArrayList<Double> list = new ArrayList<>();
-    for (IntegerExpression expr : expressions){
-      collectConstants(list, expr);
+    for (int i =1; i < expressions.size(); i++){
+      collectConstants(list, expressions.get(i));
     }
     for (Double constant : list){
       if (constant < 0){
