@@ -25,6 +25,8 @@ import java.util.Arrays;
 
 public class InternalSolver implements SmtSolver {
 
+
+  ArrayList<IVar> basis = new ArrayList<>();
   /**
    * TODO: this is the place where all the work needs to be done.
    * Figure out if we should return YES(Valuation val), NO(), or MAYBE(String reason).
@@ -61,6 +63,7 @@ public class InternalSolver implements SmtSolver {
     IVar slackVariable = problem.createIntegerVariable("z");
     IntegerExpression objFunc = SmtFactory.createMultiplication(-1, slackVariable).simplify();
     expressions = addUniversalSlackVariable(slackVariable, problem, expressions);
+    System.out.println("basis variables: " + basis);
     expressions.add(0,objFunc);
     System.out.println("final expr: " +expressions);
     if (!basicSolution(expressions)){
@@ -71,9 +74,17 @@ public class InternalSolver implements SmtSolver {
     if (positiveFactor(expressions.get(0))){
       System.out.println("positive factor present");
       IVar swap = findPositiveFactor(expressions.get(0), problem);
-      System.out.println ("swapping " + swap);
-      //IntegerExpression newExpr = findBound(swap, expressions);
-      //expressions = pivot(swap, newExpr, expressions);
+      if (!(swap.queryName()=="temp")){
+        System.out.println("we found a variable with positive factor: " + swap);
+        System.out.println ("swapping " + swap);
+        IntegerExpression newExpr = findMinBound(expressions, swap);
+        System.out.println ("expr with min bound: "+newExpr);
+        expressions = pivot(swap, newExpr, expressions);
+        System.out.println("END IN CHECKSATIS: " + expressions);
+      }
+      else{
+        System.out.println("WE ARE DONE");
+      }
     }
     //ArrayList<ArrayList<Double>> simpTab = makeSimplexTableau (problem, expressions);
     // ArrayList<ArrayList<Double>> simpTab = new ArrayList<>();
@@ -83,34 +94,81 @@ public class InternalSolver implements SmtSolver {
 
   }
 
-  public IVar findPositiveFactor (IntegerExpression expression, SmtProblem problem){
-    switch (expression) {
-      case IVar x: return x;
-      case CMult cm: if (cm.queryConstant() > 0){
-        return findPositiveFactor(cm.queryChild(), problem);
-      }
-      return SmtFactory.createIntegerVariable(problem); 
-      case Addition a:
-        for (int i = 1; i <= a.numChildren(); i++){
-          if (positiveFactor(a.queryChild(i))) {
-            findPositiveFactor(a.queryChild(i), problem);
-          }
-        } return SmtFactory.createIntegerVariable(problem);
-      default:
-        return SmtFactory.createIntegerVariable(problem);     
-    }
-  }
 
+  public IntegerExpression findMinBound (ArrayList<IntegerExpression> expressions, IVar swap){
+    //return expr in which variable swap is most bound by so has to be the lowest for
+    ArrayList<Double> constants = new ArrayList<>();
+    collectConstants(constants, expressions.get(1));
+    double total = 0;
+    for (double constant: constants){
+      total += constant;
+    }
+    double minBound = total/ -getCount(swap, expressions.get(1));
+    System.out.println ("bound found for " + expressions.get(1) + " is " + minBound);
+    IntegerExpression bounded = expressions.get(1);
+    for (int i = 2; i < expressions.size(); i++){
+      constants.clear();
+      collectConstants(constants, expressions.get(i));
+      total = 0;
+      for (double constant: constants){
+        total += constant;
+      }
+      System.out.println ("bound found for " + expressions.get(i) + " is " + total / -getCount(swap, expressions.get(i)));
+      if (total / -getCount(swap, expressions.get(i)) < minBound){
+        bounded = expressions.get(i);
+      }
+    }
+    return bounded;
+  }
   public boolean positiveFactor (IntegerExpression objFunc){
     switch (objFunc) {
+      case IVar x: return true;
       case IValue v: return false;
       case CMult cm: return cm.queryConstant() > 0;
       case Addition a:
-        for (int i = 1; i <= a.numChildren(); i++) return positiveFactor(a.queryChild(i)) || positiveFactor(SmtFactory.createAddition(a, a.queryChild(i).negate()).simplify());
+        return positiveFactor(a.queryChild(1)) || positiveFactor(SmtFactory.createAddition(a, a.queryChild(1).negate()).simplify());
       default:
         return false;     
     }
   }
+
+  // public IVar findPositiveFactor (IntegerExpression expression, SmtProblem problem){
+  //   switch (expression) {
+  //     case IVar x: return x;
+  //     case CMult cm: if (cm.queryConstant() > 0){
+  //       return findPositiveFactor(cm.queryChild(), problem);
+  //     }
+  //     case Addition a:
+  //       if (positiveFactor(a.queryChild(1))) {
+  //         return findPositiveFactor(a.queryChild(1), problem);
+  //       }
+  //       return findPositiveFactor(SmtFactory.createAddition(a, a.queryChild(1).negate()).simplify(), problem);
+  //     default:
+  //       return problem.createIntegerVariable("temp"); 
+  //   }  
+  // }
+
+  public IVar findPositiveFactor (IntegerExpression expression, SmtProblem problem) {
+    if (expression instanceof IVar) {
+        return (IVar) expression;
+    } 
+    else if (expression instanceof CMult) {
+        CMult cm = (CMult) expression;
+        if (cm.queryConstant() > 0) {
+            return findPositiveFactor(cm.queryChild(), problem);
+        }
+    } 
+    else if (expression instanceof Addition) {
+        Addition a = (Addition) expression;
+        if (positiveFactor(a.queryChild(1))) {  // Assuming positiveFactor() is defined elsewhere
+            return findPositiveFactor(a.queryChild(1), problem);
+        }
+        return findPositiveFactor(SmtFactory.createAddition(a, a.queryChild(1).negate()).simplify(), problem);
+    }
+    return problem.createIntegerVariable("temp");
+  }
+
+
 
   public ArrayList<IntegerExpression> findBasicSolution (ArrayList<IntegerExpression> expressions, IVar slackVariable){
     ArrayList<Double> list = new ArrayList<>();
@@ -126,41 +184,125 @@ public class InternalSolver implements SmtSolver {
       }
     }  
     System.out.println ("expression with lowest constant: " + expressions.get(lowestConstantIndex+1));
-    return pivot (slackVariable, expressions.get(lowestConstantIndex+1), expressions);
+    basis.set(lowestConstantIndex, slackVariable);
+    return pivot (basis.get(lowestConstantIndex), expressions.get(lowestConstantIndex+1), expressions);
   }
 
   public ArrayList<IntegerExpression> pivot (IVar slackVariable, IntegerExpression newExpr, ArrayList<IntegerExpression> expressions){
-    
+    // find variable in newExpr and swap with that  
     //int count = getCount(slackVariable, expressions.get(swap));
-    IntegerExpression remove = SmtFactory.createAddition(slackVariable.negate(), newExpr).simplify();
-    System.out.println ("swapping "+ remove.toString() + " for " + slackVariable.toString() + "in expressions");
-    newExpr = remove.negate().simplify();
-    
+    int count = getCount(slackVariable, newExpr);
+    IntegerExpression remove = SmtFactory.createMultiplication(count, slackVariable);
+    newExpr = SmtFactory.createAddition(remove.negate(), newExpr).simplify();
+    newExpr = SmtFactory.createDivision(newExpr, SmtFactory.createValue(count)).negate().simplify();
+    System.out.println ("swapping "+ newExpr + " for " + slackVariable.toString() + " in expressions");
+    newExpr = simplifyDivision (newExpr);
+    //newExpr = remove.negate().simplify();
+    System.out.println ("simplified division: " + newExpr);
     //now slackvariable needs to get replaced by newexpr
     for (int i =0; i < expressions.size(); i++){
       System.out.println("we are swapping " + slackVariable.toString() + " with " + newExpr.toString()+ " in the expression " + expressions.get(i).toString());
-      expressions.set(i,replace (expressions.get(i), slackVariable, newExpr));
+      expressions.set(i,replace (expressions.get(i), slackVariable, newExpr).simplify());
     }
     expressions.add(1, newExpr);
-    System.out.println(expressions);
+    System.out.println("new expressions: " + expressions);
+    System.out.println("basis: " + basis);
     return expressions;
 
+  }
+
+  public boolean divisionResultInteger(double constant, double value) {
+    // Check if the denominator is zero
+    if (value == 0) {
+        throw new ArithmeticException("Division by zero");
+    }
+    
+    // Check if constant divided by value is an integer
+    return constant % value == 0;
+  }
+
+  public IntegerExpression addTerms(IntegerExpression expr1, IntegerExpression expr2) {
+    return SmtFactory.createAddition(expr1, expr2);
+  }
+
+  public ArrayList<IntegerExpression> removingZeroExpressions (ArrayList<IntegerExpression> expressions){
+    for (IntegerExpression expr : expressions){
+      if (expr == SmtFactory.createValue(0)){
+        expressions.remove(expr);
+      }
+    }
+    return expressions;
+  }
+
+
+
+  public IntegerExpression simplifyDivision (IntegerExpression expr){
+    IntegerExpression newAddition = addTerms(SmtFactory.createValue(0),SmtFactory.createValue(0));
+    if (expr instanceof Division){
+      Division division = (Division) expr;
+      IntegerExpression numerator = division.queryNumerator();
+      IntegerExpression denominator = division.queryDenominator();
+      if (numerator instanceof Addition && denominator instanceof IValue){
+
+        Addition num = (Addition) numerator;
+        IValue de = (IValue) denominator;
+        for (int i =1; i <= num.numChildren(); i++){
+          System.out.println ("looking at: " + num.queryChild(i));
+          if (num.queryChild(i) instanceof CMult){
+            System.out.println("instance of cmult");
+            CMult mult = (CMult) num.queryChild(i);
+            if (divisionResultInteger(mult.queryConstant(), de.queryValue())){
+              newAddition = addTerms(newAddition, SmtFactory.createMultiplication(SmtFactory.createValue(mult.queryConstant()/de.queryValue()),mult.queryChild()));
+            }
+            else{
+              newAddition = addTerms(newAddition, SmtFactory.createMultiplication(SmtFactory.createDivision(SmtFactory.createValue(mult.queryConstant()),de),mult.queryChild()));
+            }
+            System.out.println(newAddition);
+          }
+          else if (num.queryChild(i) instanceof IVar){
+            System.out.println("instance of ivar");
+            newAddition = addTerms(newAddition, SmtFactory.createMultiplication(SmtFactory.createDivision(SmtFactory.createValue(1),de), num.queryChild(i)));
+            System.out.println(newAddition);
+          }
+          else if (num.queryChild(i) instanceof IValue){
+            System.out.println("instance of ivalue");
+            IValue value = (IValue) num.queryChild(i);
+            if (divisionResultInteger(value.queryValue(),de.queryValue())){
+              newAddition = addTerms(newAddition, SmtFactory.createValue(value.queryValue()/de.queryValue()));
+            }
+            else{
+              newAddition = addTerms(newAddition, SmtFactory.createDivision(value,de));
+            } 
+          }
+        }
+      }
+      System.out.println("returning: " + newAddition);
+      System.out.println("returning simplified: " + newAddition.simplify());
+      return newAddition.simplify();
+    }
+    return expr;
   }
 
 
   public IntegerExpression replace (IntegerExpression expr, IVar oldVar, IntegerExpression newExpr){
     switch (expr) {
       case IVar x: if (x == oldVar){
+        System.out.println ("found oldvar " + oldVar + " returning " + newExpr);
         return newExpr; 
       } else {
         return x;
       }
+      case Division d: return d;
       case IValue v: return v;
-      case CMult cm: return SmtFactory.createMultiplication(cm.queryConstant(), replace(cm.queryChild(), oldVar, newExpr)).simplify();
+      case CMult cm: System.out.println ("in cmult case for " + cm + "result: " + SmtFactory.createMultiplication(cm.queryConstant(), replace(cm.queryChild(), oldVar, newExpr)).simplify()); return SmtFactory.createMultiplication(cm.queryConstant(), replace(cm.queryChild(), oldVar, newExpr)).simplify();
       case Addition a:
-        for (int i = 1; i <= a.numChildren(); i++) return SmtFactory.createAddition(replace(a.queryChild(i), oldVar, newExpr), replace(SmtFactory.createAddition(a, a.queryChild(i).negate()).simplify(), oldVar, newExpr)).simplify();
+        for (int i = 1; i <= a.numChildren(); i++){
+          System.out.println("replacing oldVar in " +a.queryChild(i)+ " and in " + SmtFactory.createAddition(a, a.queryChild(i).negate()).simplify());
+          return SmtFactory.createAddition(replace(a.queryChild(i), oldVar, newExpr), replace(SmtFactory.createAddition(a, a.queryChild(i).negate()).simplify(), oldVar, newExpr)).simplify();
+        }
       default:
         throw new Error("Expression of the form " + expr.toString() + " not supported!");
+      
     }
   }
 
@@ -205,7 +347,9 @@ public class InternalSolver implements SmtSolver {
     //with coefficient -1, not sure if thats correct
     for (int i =0; i < expressions.size(); i++){
       System.out.println(expressions.get(i).toString() + " " + expressions.get(i).getClass());
-      expressions.set(i, SmtFactory.createAddition(SmtFactory.createMultiplication(-1,problem.createIntegerVariable()).simplify(), expressions.get(i)));
+      IVar slackVariable = problem.createIntegerVariable();
+      basis.add(slackVariable);
+      expressions.set(i, SmtFactory.createAddition(SmtFactory.createMultiplication(-1,slackVariable).simplify(), expressions.get(i)));
     }
     return expressions;
   }
