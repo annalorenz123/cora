@@ -75,7 +75,7 @@ public final class Division extends IntegerExpression {
     IntegerExpression d = _denominator.simplify();
     switch (_denominator) {
       case IValue k:
-        //if (n instanceof IValue i) return new IValue(evaluateFor(i.queryValue(), k.queryValue()));
+        if (n instanceof IValue i) return new IValue(evaluateFor(i.queryValue(), k.queryValue()));
         if (k.queryValue() == 1) return _numerator;
         if (k.queryValue() == -1) return _numerator.multiply(-1); // a div -1 = -a
         if (k.queryValue() < 0) { // a div -b = - (a div b)
