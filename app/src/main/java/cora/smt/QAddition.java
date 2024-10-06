@@ -43,30 +43,6 @@ public final class QAddition extends QExpression {
    */
   public QExpression add(QValue constant) {
     return new QAddition (this, constant).simplify();
-    // if (constant.queryNominator() == 0) return this;
-    // if (_children.size() == 0) return constant;
-    // if (_children.get(0) instanceof QValue k) {
-    //   return new Addition ()
-    //   if (k.queryValue() == -constant) {
-    //     if (_children.size() == 2) return _children.get(1);
-    //     else return new Addition(_children.subList(1, _children.size()));
-    //   }
-    //   if (_simplified) {
-    //     ArrayList<IntegerExpression> ret = new ArrayList<IntegerExpression>(_children);
-    //     ret.set(0, new IValue(k.queryValue() + constant));
-    //     return new Addition(ret, true);
-    //   }
-    //   else {
-    //     _children.set(0, new IValue(k.queryValue() + constant));
-    //     Addition ret = new Addition(_children);
-    //     _children.set(0, k);
-    //     return ret;
-    //   }
-    // }
-    // ArrayList<IntegerExpression> parts = new ArrayList<IntegerExpression>();
-    // parts.add(new IValue(constant));
-    // parts.addAll(_children);
-    // return new Addition(parts, _simplified);
   }
 
   /** Returns the number of children this Addition has */
@@ -85,8 +61,41 @@ public final class QAddition extends QExpression {
 
   /** Returns a simplified representation of the addition */
   public QExpression simplify() {
-    return this;
-    //throw new UnsupportedOperationException("TODO: Not yet implemented");
+    //if (_simplified) return this;
+    // acquire all children in simplified form
+    ArrayList<QExpression> todo = new ArrayList<QExpression>();
+    for (QExpression c : _children) {
+      c = c.simplify();
+      if (c instanceof QAddition a) todo.addAll(a._children);
+      else todo.add(c);
+    }
+    // store the children into a treemap so we can count duplicates, but merge the contants directly
+    TreeMap<QExpression,QValue> counts = new TreeMap<QExpression,QValue>();
+    QValue constant = new QValue(0,1);
+    for (QExpression c : todo) {
+      QExpression main;
+      QValue num;
+      if (c instanceof QValue k) {constant = constant.add(k); continue; }
+      else if (c instanceof QMult cm) { main = cm.queryChild(); num = cm.queryConstant();}
+      else { main = c; num = new QValue(1,1); }
+      QValue current = counts.get(main);
+      if (current == null) counts.put(main, num);
+      else counts.put(main, num.add(current));
+    }
+    // read them out
+    ArrayList<QExpression> ret = new ArrayList<QExpression>();
+    if (constant.queryNumerator() != 0){
+      ret.add(constant);
+    } 
+    for (Map.Entry<QExpression,QValue> entry : counts.entrySet()) {
+      QValue k = entry.getValue();
+      if (k.queryDenominator()==k.queryNumerator()) ret.add(entry.getKey());
+      else if (k.queryNumerator() != 0) ret.add(new QMult(k, entry.getKey()));
+    }
+    // return the result
+    if (ret.size() == 0) return new QValue(0,1);
+    if (ret.size() == 1) return ret.get(0);
+    return new QAddition(ret);
   }
 
   public QExpression multiply(QValue constant) {

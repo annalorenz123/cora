@@ -20,6 +20,11 @@ public final class QValue extends QExpression {
     _denominator = d;
   }
 
+
+  public QValue simplify (QValue numerator , QValue denominator){
+    return new QValue (numerator.queryNumerator()*denominator.queryDenominator(), numerator.queryDenominator()*denominator.queryNumerator());
+  }
+
   public int queryNumerator() {
     return _numerator;
   }
@@ -32,19 +37,17 @@ public final class QValue extends QExpression {
     return this;
   }
 
-  public QExpression add(int value) {
-    //return new QValue(value + _k);
-    throw new UnsupportedOperationException("TODO: Not yet implemented");
+
+  public QValue add(QValue q) {
+    return new QValue ((_numerator * q.queryDenominator()) + (_denominator* q.queryNumerator()), _denominator * q.queryDenominator());
   }
 
   //cannot be Qexpression???
   public QValue multiply(QValue value) {
     return new QValue(value.queryNumerator() * _numerator, value.queryDenominator()*_denominator);
   }
-
   public int compareTo(QExpression other) {
-    if (other instanceof QValue){
-      QValue q = (QValue) other;
+    if (other instanceof QValue q ){
       long leftSide = (long) this._numerator * q.queryDenominator();
       long rightSide = (long) this._denominator * q.queryNumerator();
       if (leftSide < rightSide) {

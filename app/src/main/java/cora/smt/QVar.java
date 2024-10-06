@@ -29,7 +29,12 @@ public final class QVar extends QExpression {
   }
 
   public int compareTo(QExpression other) {
-    throw new UnsupportedOperationException("TODO: Not yet implemented");
+    return switch (other) {
+      case QValue v -> 1;
+      case QVar x -> _index  - x.queryIndex();
+      case QMult cm -> compareTo(cm.queryChild()) <= 0 ? -1 : 1;
+      case QAddition a -> -1;
+    };
   }
 
 }
