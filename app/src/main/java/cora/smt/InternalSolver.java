@@ -89,7 +89,10 @@ public class InternalSolver implements SmtSolver {
           QExpression newExpr = findMinBound(Qexpressions, swap);
           System.out.println ("expr with min bound: "+newExpr);
           Qexpressions = pivot(swap, newExpr, Qexpressions);
+
           System.out.println("END: " + Qexpressions);
+          Qexpressions = removingZeroExpressions(Qexpressions);
+          System.out.println("removed zero expressions: " + Qexpressions);
         }
       }
     }
@@ -98,8 +101,7 @@ public class InternalSolver implements SmtSolver {
     for (int i =1; i < Qexpressions.size(); i++){
       collectConstants(constants, Qexpressions.get(i));
     }
-    System.out.println ("values of basis variables: " + removeZeros(constants));
-
+    System.out.println ("values of basis variables: " + constants);
     return new Answer.MAYBE("not implemented yet");
   }
 
@@ -117,9 +119,7 @@ public class InternalSolver implements SmtSolver {
   public ArrayList<QExpression> convertToQExpressions (ArrayList<IntegerExpression> expressions){
     ArrayList<QExpression> Qexpressions = new ArrayList<>();
     for (IntegerExpression expr : expressions){
-      System.out.println ("converting " + expr + " result: " + convert(expr));
       Qexpressions.add(convert(expr));
-      
     }
     return Qexpressions;
   }
@@ -138,7 +138,6 @@ public class InternalSolver implements SmtSolver {
       case Addition a:
         List<QExpression> list = new ArrayList<>();
         for (int i = 1; i <= a.numChildren(); i++) list.add(convert(a.queryChild(i)));
-        System.out.println (list);
         return new QAddition(list);
       default:
         throw new Error("Expression of the form " + expr.toString() + " not supported!");
@@ -153,10 +152,13 @@ public class InternalSolver implements SmtSolver {
     for (QValue constant: constants){
       total = total.add(constant);
     }
-    QExpression minBound = divide(total, getCount(swap, expressions.get(1)));
+    int boundedIndex = 1;
+    while (getCount(swap, expressions.get(boundedIndex)).queryNumerator()==0){
+      boundedIndex++;
+    }
+    QExpression minBound = divide(total, getCount(swap, expressions.get(boundedIndex)));
     //System.out.println ("bound found for " + expressions.get(1) + " is " + minBound + ", minbound of class" + minBound.getClass());
-    QExpression bounded = expressions.get(1);
-    int boundedIndex = 0;
+    QExpression bounded = expressions.get(boundedIndex);
     for (int i = 2; i < expressions.size(); i++){
       constants.clear();
       collectConstants(constants, expressions.get(i));
@@ -185,12 +187,13 @@ public class InternalSolver implements SmtSolver {
 
   public boolean positiveFactor (QExpression objFunc){
     switch (objFunc) {
-      case QVar x: return true;
-      case QValue v: return false;
-      case QMult cm: return cm.queryConstant().queryNumerator() > 0;
+      case QVar x: System.out.println ("qvar case"); return true;
+      case QValue v: System.out.println ("qvalue case");return false;
+      case QMult cm: System.out.println ("qmult case");return cm.queryConstant().queryNumerator() > 0;
       case QAddition a:
-        return positiveFactor(a.queryChild(1)) || positiveFactor(new QAddition(a, a.queryChild(1).negate()).simplify());
+        System.out.println ("addition case");return positiveFactor(a.queryChild(1)) || positiveFactor(new QAddition(a, a.queryChild(1).negate()).simplify());
       default:
+        System.out.println ("default case");
         return false;     
     }
   }
@@ -282,6 +285,9 @@ public class InternalSolver implements SmtSolver {
 
 
   public QExpression divide (QExpression expr, QValue count){
+    if (count.queryNumerator()==0){
+      throw new IllegalArgumentException("We cannot divide by zero.");
+    }
     switch (expr) {
       case QVar x: 
       if (getCount(x,expr).queryNumerator() == getCount(x,expr).queryDenominator()){
@@ -331,14 +337,17 @@ public class InternalSolver implements SmtSolver {
     return new QAddition (expr1, expr2);
   }
 
-  // public ArrayList<IntegerExpression> removingZeroExpressions (ArrayList<IntegerExpression> expressions){
-  //   for (IntegerExpression expr : expressions){
-  //     if (expr == SmtFactory.createValue(0)){
-  //       expressions.remove(expr);
-  //     }
-  //   }
-  //   return expressions;
-  // }
+  public ArrayList<QExpression> removingZeroExpressions (ArrayList<QExpression> expressions){
+    for (int i =0; i < expressions.size(); i++){
+      if (expressions.get(i) instanceof QValue q){
+        if (q.queryNumerator()==0){
+          expressions.remove(i);
+          i--;
+        }
+      }
+    }
+    return expressions;
+  }
 
 
 
