@@ -69,4 +69,59 @@ public class SimplexTest{
 
 
     }
+
+    @Test
+    public void testFindMinBound(){
+        //test1
+        InternalSolver internalSolver = new InternalSolver();
+        QVar x = new QVar(1);
+        QExpression expr1 = new QAddition(new ArrayList<QExpression>(Arrays.asList(new QValue(7,1), new QMult(new QValue(-3,1), x),new QMult(new QValue(2,1), new QVar(2)),new QMult(new QValue(-1,1), new QVar(3)))));
+        QExpression expr2 = new QAddition(new ArrayList<QExpression>(Arrays.asList(new QValue(12,1), new QMult(new QValue(-5,1), x),new QMult(new QValue(4,1), new QVar(2)),new QMult(new QValue(6,1), new QVar(3)))));
+        QExpression expr3 = new QValue (7,1);
+        QExpression expr4 = new QMult (new QValue(7,1), x);
+        ArrayList <QExpression> qexpressions = new ArrayList<>();
+        qexpressions.add(x);
+        qexpressions.add(expr1);
+        qexpressions.add(expr2);
+        qexpressions.add(expr3);
+        qexpressions.add(expr4);
+        System.out.println (internalSolver.findMinBound(qexpressions,x));
+        assertEquals(internalSolver.findMinBound(qexpressions, x), expr1);
+        
+        //test2
+        qexpressions.clear();
+        QExpression expr5 = new QAddition (new ArrayList<QExpression>(Arrays.asList(new QValue(-12,1), new QMult(new QValue(-1,1), x))));
+        qexpressions.add(x);
+        qexpressions.add(expr5);
+        assertThrows(Error.class, () -> internalSolver.findMinBound(qexpressions, x));
+
+        //test3
+        qexpressions.clear();
+        qexpressions.add(x);
+        qexpressions.add(new QAddition (new ArrayList<QExpression>(Arrays.asList(new QValue(-12,1), new QMult(new QValue(1,1), x)))));
+        assertThrows(Error.class, () -> internalSolver.findMinBound(qexpressions, x));
+
+        //test4
+        qexpressions.add(expr1);
+        assertEquals(internalSolver.findMinBound(qexpressions, x), expr1);
+    }
+
+    @Test
+    public void testExprWithLowestConstant(){
+        InternalSolver internalSolver = new InternalSolver();
+        QVar x = new QVar(1);
+        QExpression expr1 = new QAddition(new ArrayList<QExpression>(Arrays.asList(new QValue(7,1), new QMult(new QValue(-3,1), x),new QMult(new QValue(2,1), new QVar(2)),new QMult(new QValue(-1,1), new QVar(3)))));
+        QExpression expr2 = new QAddition(new ArrayList<QExpression>(Arrays.asList(new QValue(-13,1), new QMult(new QValue(-3,1), x),new QMult(new QValue(2,1), new QVar(2)),new QMult(new QValue(-1,1), new QVar(3)))));
+        QExpression expr3 = new QAddition(new ArrayList<QExpression>(Arrays.asList(new QValue(-2,1), new QMult(new QValue(-3,1), x),new QMult(new QValue(2,1), new QVar(2)),new QMult(new QValue(-1,1), new QVar(3)))));
+        QExpression expr4 = new QMult(new QValue(-15,1), new QVar(2));
+        ArrayList <QExpression> qexpressions = new ArrayList<>();
+        qexpressions.add(expr1);
+        qexpressions.add(expr2);
+        qexpressions.add(expr3);
+        qexpressions.add(expr4);
+        assertEquals(internalSolver.exprWithLowestConstant(qexpressions), expr2);
+    }
+
+
+
 }
