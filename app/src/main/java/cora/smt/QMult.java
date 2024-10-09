@@ -22,14 +22,14 @@ public final class QMult extends QExpression {
 
   public QExpression simplify() {
     //if (_simplified) return this;
-    if (_constant.queryNumerator() == 0) return new QValue(0,0);
+    if (_constant.queryNumerator() == 0) return new QValue(0,1);
     if (_constant.queryNumerator() == _constant.queryDenominator()) return _main.simplify();
     return _main.simplify().multiply(_constant);
   }
 
   public QExpression multiply(QValue constant) {
     QValue newconstant = _constant.multiply(constant);
-    if (newconstant.queryNumerator() == 0) return new QValue(0,0);
+    if (newconstant.queryNumerator() == 0) return new QValue(0,1);
     if (newconstant.queryNumerator() == newconstant.queryDenominator()) return _main;
     if (constant.queryNumerator() == constant.queryDenominator()) return this;
     return new QMult(newconstant, _main);

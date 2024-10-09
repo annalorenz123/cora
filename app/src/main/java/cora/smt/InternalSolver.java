@@ -28,45 +28,164 @@ import java.util.Arrays;
 public class InternalSolver implements SmtSolver {
 
 
-  ArrayList<String> basis = new ArrayList<>();
+  ArrayList<QVar> basis = new ArrayList<>();
   /**
    * TODO: this is the place where all the work needs to be done.
    * Figure out if we should return YES(Valuation val), NO(), or MAYBE(String reason).
    */
-  public SmtSolver.Answer checkSatisfiability(SmtProblem problem) {
-    //return new Answer.YES(new Valuation());
+  public SmtSolver.Answer checkSatisfiability(SmtProblem problem){
     Constraint constraints = problem.queryCombinedConstraint();
     System.out.println(constraints);
-    ArrayList<Constraint> children = new ArrayList<>();
-    if (constraints instanceof Conjunction) {
-      Conjunction conjunction = (Conjunction) constraints;
-      for (int i = 1; i <= conjunction.numChildren(); i++){
-        children.add(conjunction.queryChild(i));
-      }
-    }
-    ArrayList<IntegerExpression> expressions = new ArrayList<IntegerExpression>();
-    for (int i =0; i < children.size(); i++){
-      //aanpassen naar switch
-      Constraint child = children.get(i);
-      if (child instanceof Is0){
-        System.out.println("instance of is0" + child.toString());
-        Is0 func = (Is0) child;
-        expressions.add(func.queryExpression().simplify());
-      }
-      else if (child instanceof Geq0){
-        Geq0 func = (Geq0) child;
-        expressions.add(func.queryExpression().simplify());
-      }
-    }
+    ArrayList<Constraint> children = getConstraints(constraints);
+    ArrayList<IntegerExpression> expressions = getExpressions(children);
     System.out.println("expressions: " +expressions);
     ArrayList<QExpression> Qexpressions = convertToQExpressions(expressions);
     System.out.println (Qexpressions.toString());
-    //for every expression except the objective function we add a slack variable
+    Qexpressions = simplexMethod(problem, Qexpressions);
+    System.out.println ("we are done, no positive factors in obj func: " + Qexpressions.get(0));
+    System.out.println ("basis: " + basis);
     
+    ArrayList<QValue> solution = collectSolution(Qexpressions);
+    System.out.println ("values of basis variables: " + solution);
+    // if (maximalValue(constantsFinal).compareTo(new QValue(0,1)) < 0){
+    //   System.out.println ("No solution since maximum value of z is: " + maximalValue(constantsFinal));
+    //   return new Answer.NO();
+    // }
+    if (zSmallerThanZero(solution)){
+      if (integerSolution(solution)){
+        Valuation val = makeValuation(problem, solution); 
+        return new Answer.YES(val);
+        // if (extraCheck(val, expressions)){
+        //   System.out.println ("valuation: " + val);
+        //   return new Answer.YES(val);
+        // }
+
+      }
+      else {
+
+        // for (int i = 0; i < solution.size(); i++){
+        //   if (solution.get(i).queryDenominator() != 1){
+        //     System.out.println ("fraction in answer: " + q);
+        //     double value = (double) solution.get(i).queryNumerator() / solution.get(i).queryDenominator();
+        //     QValue roundedDown = new QValue ((int) Math.floor(value), 1);
+        //     System.out.println (roundedDown);
+        //     Valuation newVal = val;
+        //     newVal.setInt(i, roundedDown);
+        //     if (extraCheck(newVal, expressions)){
+        //       System.out.println ("it now holds, val is: " + newVal);
+        //     }
+
+
+        //   }
+        // }
+        return new Answer.MAYBE("no integer solution");
+      }
+    }
+    return new Answer.NO();
+
+  }
+
+  /**
+   * TODO: this should return true if we can prove that the given problem is valid, and false if
+   * we cannot prove validity.  Note that if we let phi be the negation of the problem (use:
+   * problem.queryCombinedConstraint().negate()), then we have validity exactly if we can show that
+   * phi is NOT satisfiabile.
+   */
+  public boolean checkValidity(SmtProblem problem) {
+    return !checkSatisfiability(problem).isYes();
+  }
+
+
+  public ArrayList<Constraint> getConstraints (Constraint constraints){
+    ArrayList<Constraint> children = new ArrayList<>();
+    switch (constraints) {
+      case Conjunction c: 
+        for (int i = 1; i <= c.numChildren(); i++){
+          children.add(c.queryChild(i));
+        }
+        return children;
+      case Is0 i:
+        children.add(i);
+        return children;
+      case Geq0 q:
+        children.add(q);
+        return children;
+      default: 
+        throw new Error("Expression of the form " + constraints + " not supported!");
+
+    }
+  }
+
+  public ArrayList<IntegerExpression> getExpressions (ArrayList<Constraint> children){
+    ArrayList<IntegerExpression> expressions = new ArrayList<>();
+    for (int i =0; i < children.size(); i++){
+      //aanpassen naar switch
+      switch (children.get(i)){
+        case Is0 is0: expressions.add(is0.queryExpression().simplify()); expressions.add(is0.queryExpression().negate().simplify()); break;
+        case Geq0 geq0: expressions.add(geq0.queryExpression().simplify()); break;
+        default: throw new Error("Expression of the form " + children.get(i).toString() + " not supported!");
+      }
+    }
+    return expressions;
+  }
+
+  public boolean extraCheck (Valuation val, ArrayList<IntegerExpression> expressions){
+    for (IntegerExpression expr : expressions){
+      if (expr.evaluate(val) < 0) System.out.println (val.toString() + " does not hold for " + expr + " valuation is " + expr.evaluate(val)); return false; 
+    }
+    return true;
+  }
+
+  public ArrayList<QValue> collectSolution(ArrayList<QExpression> Qexpressions){
+    ArrayList<QValue> constantsFinal = new ArrayList<>();
+    for (int i =1; i < Qexpressions.size(); i++){
+      ArrayList<QValue> constants = new ArrayList<>();
+      collectConstants(constants, Qexpressions.get(i));
+      constantsFinal.addAll(constants);
+      if (constants.isEmpty()) constantsFinal.add(new QValue(0,1));
+    }
+    return constantsFinal;
+  }
+
+  public boolean zSmallerThanZero(ArrayList<QValue> constants){
+    for (int i =0; i < basis.size(); i++){
+      if (basis.get(i).queryName().equals("[z]")) {
+        return constants.get(i).compareTo(new QValue(0,1)) < 0;
+      }
+    }
+    return true;
+  }
+
+  public boolean integerSolution (ArrayList<QValue> solution){
+    for (QValue q : solution){
+      if (q.queryDenominator() != 1) return false;
+    }
+    return true;
+  }
+
+  public Valuation makeValuation (SmtProblem problem, ArrayList<QValue> constants){
+    
+    Valuation val = new Valuation();
+    //first we set all variables to zero
+    for (int i =0; i <= problem.numberIntegerVariables(); i++){
+      val.setInt(i, 0);
+    }
+    //then we set basis variables to their corresponding values
+    for (int i =0; i < basis.size(); i++){
+      if (basis.get(i).queryIndex() <= problem.numberIntegerVariables()){
+        System.out.println ("setting variable " + (basis.get(i).queryIndex())+ " to " + constants.get(i).queryNumerator() + " in valuation");
+        val.setInt(basis.get(i).queryIndex()-1, constants.get(i).queryNumerator());
+      }
+    }
+    return val;
+  }
+
+
+  public ArrayList<QExpression> simplexMethod (SmtProblem problem, ArrayList<QExpression> Qexpressions){
     Qexpressions = addIndividualSlackVariables(problem, Qexpressions);
     System.out.println (Qexpressions);
 
-    QVar slackVariable = new QVar(problem.numberIntegerVariables()+ expressions.size()+1, "z");
+    QVar slackVariable = new QVar(problem.numberIntegerVariables()+ Qexpressions.size()+1, "z");
     QExpression objFunc = new QMult (new QValue(-1, 1), slackVariable);
     Qexpressions = addUniversalSlackVariable(slackVariable, Qexpressions);
     System.out.println (Qexpressions);
@@ -77,10 +196,15 @@ public class InternalSolver implements SmtSolver {
     if (!basicSolution(Qexpressions)){
       System.out.println("there is no basic solution");
       Qexpressions = findBasicSolution(Qexpressions, slackVariable);
+      Qexpressions = removingZeroExpressions(Qexpressions);
       System.out.println("new expr: " + Qexpressions);
+    }
+    else{
+      return Qexpressions;
     }
     if (basicSolution(Qexpressions)){
       System.out.println ("we have a basic solution");
+      //for (int i =0; i < 10; i++){
       while (positiveFactor(Qexpressions.get(0))){
         System.out.println("positive factor present");
         QVar swap = findPositiveFactor(Qexpressions.get(0), problem);
@@ -89,22 +213,13 @@ public class InternalSolver implements SmtSolver {
           QExpression newExpr = findMinBound(Qexpressions, swap);
           System.out.println ("expr with min bound: "+newExpr);
           Qexpressions = pivot(swap, newExpr, Qexpressions);
-
-          System.out.println("END: " + Qexpressions);
           Qexpressions = removingZeroExpressions(Qexpressions);
           System.out.println("removed zero expressions: " + Qexpressions);
         }
       }
     }
-    System.out.println ("basis: " + basis);
-    ArrayList<QValue> constants = new ArrayList<>();
-    for (int i =1; i < Qexpressions.size(); i++){
-      collectConstants(constants, Qexpressions.get(i));
-    }
-    System.out.println ("values of basis variables: " + constants);
-    return new Answer.MAYBE("not implemented yet");
+    return Qexpressions;
   }
-
 
   public ArrayList<QValue> removeZeros (ArrayList<QValue> list){
     for (int i =0; i < list.size(); i++){
@@ -153,11 +268,11 @@ public class InternalSolver implements SmtSolver {
       total = total.add(constant);
     }
     int boundedIndex = 1;
-    while (getCount(swap, expressions.get(boundedIndex)).queryNumerator()==0){
+    while (getCount(swap, expressions.get(boundedIndex)).queryNumerator()==0 || divide(total, getCount(swap, expressions.get(boundedIndex))).compareTo(new QValue(0,1)) > 0){
       boundedIndex++;
     }
     QExpression minBound = divide(total, getCount(swap, expressions.get(boundedIndex)));
-    //System.out.println ("bound found for " + expressions.get(1) + " is " + minBound + ", minbound of class" + minBound.getClass());
+    System.out.println ("bound found for " + expressions.get(1) + " is " + minBound + ", minbound of class" + minBound.getClass());
     QExpression bounded = expressions.get(boundedIndex);
     for (int i = 2; i < expressions.size(); i++){
       constants.clear();
@@ -169,71 +284,47 @@ public class InternalSolver implements SmtSolver {
       if (getCount(swap, expressions.get(i)).queryNumerator() != 0){
         //System.out.println ("bound found for " + expressions.get(i) + " is " + divide(total, getCount(swap, expressions.get(i))));
         if (divide(total, getCount(swap, expressions.get(i))) instanceof QValue q){
-          if (q.compareTo(minBound) > 0) {
+          System.out.println ("minbound for " + swap + " in " + expressions.get(i) + " is " + divide(total, getCount(swap, expressions.get(i))));
+          if (q.compareTo(minBound) > 0 && q.compareTo(new QValue(0,1))< 0) {
             minBound = q;
             bounded = expressions.get(i);
             boundedIndex = i-2;
-            System.out.println("found new minBound " + q + " setting basis min bound index to " + boundedIndex);
+            //System.out.println("found new minBound " + q + " setting basis min bound index to " + boundedIndex);
           }
         }
       }
-
     }
     System.out.println ("setting index " + boundedIndex+" in basis to "+swap.queryName() );
-    basis.set(boundedIndex, swap.queryName());
+    //basis.set(boundedIndex, swap.queryName());
 
     return bounded;
   }
 
   public boolean positiveFactor (QExpression objFunc){
     switch (objFunc) {
-      case QVar x: System.out.println ("qvar case"); return true;
-      case QValue v: System.out.println ("qvalue case");return false;
-      case QMult cm: System.out.println ("qmult case");return cm.queryConstant().queryNumerator() > 0;
-      case QAddition a:
-        System.out.println ("addition case");return positiveFactor(a.queryChild(1)) || positiveFactor(new QAddition(a, a.queryChild(1).negate()).simplify());
-      default:
-        System.out.println ("default case");
-        return false;     
+      case QVar x: return true;
+      case QValue v: return false;
+      case QMult cm: return cm.queryConstant().queryNumerator() > 0;
+      case QAddition a: return positiveFactor(a.queryChild(1)) || positiveFactor(new QAddition(a, a.queryChild(1).negate()).simplify());
+      default: return false;     
     }
   }
 
-  // public IVar findPositiveFactor (IntegerExpression expression, SmtProblem problem){
-  //   switch (expression) {
-  //     case IVar x: return x;
-  //     case CMult cm: if (cm.queryConstant() > 0){
-  //       return findPositiveFactor(cm.queryChild(), problem);
-  //     }
-  //     case Addition a:
-  //       if (positiveFactor(a.queryChild(1))) {
-  //         return findPositiveFactor(a.queryChild(1), problem);
-  //       }
-  //       return findPositiveFactor(SmtFactory.createAddition(a, a.queryChild(1).negate()).simplify(), problem);
-  //     default:
-  //       return problem.createIntegerVariable("temp"); 
-  //   }  
-  // }
-
-
-  
   public QVar findPositiveFactor (QExpression expression, SmtProblem problem) {
-    //change to switch?
-    if (expression instanceof QVar var) {
-        return var;
-    } 
-    else if (expression instanceof QMult cm) {
+    switch (expression){
+      case QVar x: return x;
+      case QMult cm: 
         if (cm.queryConstant().queryNumerator() > 0) {
-            return findPositiveFactor(cm.queryChild(), problem);
+          return findPositiveFactor(cm.queryChild(), problem);
         }
-    } 
-    else if (expression instanceof QAddition a) {
-        if (positiveFactor(a.queryChild(1))) { 
-            return findPositiveFactor(a.queryChild(1), problem);
+        return new QVar (100, "temp");
+      case QAddition a: 
+        if (positiveFactor(a.queryChild(1))){
+          return findPositiveFactor(a.queryChild(1), problem);
         }
         return findPositiveFactor(new QAddition(a, a.queryChild(1).negate()).simplify(), problem);
+      default: return new QVar (100, "temp");
     }
-    //ugly change to something else
-    return new QVar (100, "temp");
   }
 
   public ArrayList<QExpression> findBasicSolution (ArrayList<QExpression> expressions, QVar slackVariable){
@@ -252,32 +343,31 @@ public class InternalSolver implements SmtSolver {
       }
     }  
     System.out.println ("expression with lowest constant: " + expressions.get(lowestConstantIndex+1));
-    basis.set(lowestConstantIndex, slackVariable.queryName());
     System.out.println ("basis: " + basis);
-    //return expressions;
-    //todo implement pivot and basis
     return pivot (slackVariable, expressions.get(lowestConstantIndex+1), expressions);
   }
 
-  public ArrayList<QExpression> pivot (QVar slackVariable, QExpression newExpr, ArrayList<QExpression> expressions){
+  public ArrayList<QExpression> pivot (QVar swap, QExpression newExpr, ArrayList<QExpression> expressions){
     // find variable in newExpr and swap with that  
-    //int count = getCount(slackVariable, expressions.get(swap));
-    QValue count = getCount(slackVariable, newExpr);
-    System.out.println ("found count " + count + "of " + slackVariable + " in " + newExpr);
-    QExpression remove = new QMult(count, slackVariable);
+    QValue count = getCount(swap, newExpr);
+    System.out.println ("found count " + count + "of " + swap + " in " + newExpr);
+    QExpression remove = new QMult(count, swap);
     newExpr = new QAddition (remove.negate(), newExpr).negate().simplify();
     System.out.println(newExpr);
     newExpr = divide(newExpr, count).simplify();
     //FIX LATER WHY SIMPLIFY AGAIN AFTER DIVIDE
+    System.out.println("we are swapping " + swap + " with " + newExpr.toString());
     for (int i =0; i < expressions.size(); i++){
-      //System.out.println("we are swapping " + slackVariable.toString() + " with " + newExpr.toString()+ " in the expression " + expressions.get(i).toString());
-      expressions.set(i,replace (expressions.get(i), slackVariable, newExpr).simplify());
+      QExpression newExpression = replace (expressions.get(i), swap, newExpr);
+      if (newExpression instanceof QValue q){
+        System.out.println ("found qvalue in expressions: " + q + "removing basis value: " + basis.get(i-1));
+        basis.remove(i-1);
+      }
+      expressions.set(i,newExpression);
     }
-    newExpr = addTerms(newExpr, new QMult(new QValue(-1,1), slackVariable));
+    newExpr = addTerms(newExpr, new QMult(new QValue(-1,1), swap));
     expressions.add(1, newExpr);
-    
-    // expressions = simplifyExpressions(expressions);
-    System.out.println("new expressions: " + expressions);
+    basis.add(0, swap);
     System.out.println("basis: " + basis);
     return expressions;
 
@@ -307,32 +397,6 @@ public class InternalSolver implements SmtSolver {
 
   }
 
-  // public ArrayList<IntegerExpression> simplifyExpressions(ArrayList<IntegerExpression> expressions){
-  //   for (int i =0; i <expressions.size(); i++){
-  //     if (expressions.get(i) instanceof Addition){
-  //       Addition a = (Addition) expressions.get(i);
-  //       IntegerExpression newExpr = SmtFactory.createAddition(SmtFactory.createValue(0),SmtFactory.createValue(0));
-  //       for (int j =1; j <= a.numChildren(); j++){
-  //         System.out.println ("going to simplify: " + a.queryChild(j)+ " of type " +a.queryChild(j).getClass() );
-  //         newExpr = addTerms(newExpr, a.queryChild(j).simplify());
-  //       } 
-  //       expressions.set(i, newExpr);
-  //     }
-  //     expressions.set(i, expressions.get(i).simplify());
-  //   }
-  //   return expressions;
-  // }
-
-  // public boolean divisionResultInteger(double constant, double value) {
-  //   // Check if the denominator is zero
-  //   if (value == 0) {
-  //       throw new ArithmeticException("Division by zero");
-  //   }
-    
-  //   // Check if constant divided by value is an integer
-  //   return constant % value == 0;
-  // }
-
   public QAddition addTerms(QExpression expr1, QExpression expr2) {
     return new QAddition (expr1, expr2);
   }
@@ -349,57 +413,8 @@ public class InternalSolver implements SmtSolver {
     return expressions;
   }
 
-
-
-  // public IntegerExpression simplifyDivision (IntegerExpression expr){
-  //   IntegerExpression newAddition = addTerms(SmtFactory.createValue(0),SmtFactory.createValue(0));
-  //   if (expr instanceof Division){
-  //     Division division = (Division) expr;
-  //     IntegerExpression numerator = division.queryNumerator();
-  //     IntegerExpression denominator = division.queryDenominator();
-  //     if (numerator instanceof Addition && denominator instanceof IValue){
-
-  //       Addition num = (Addition) numerator;
-  //       IValue de = (IValue) denominator;
-  //       for (int i =1; i <= num.numChildren(); i++){
-  //         System.out.println ("looking at: " + num.queryChild(i));
-  //         if (num.queryChild(i) instanceof CMult){
-  //           System.out.println("instance of cmult");
-  //           CMult mult = (CMult) num.queryChild(i);
-  //           if (divisionResultInteger(mult.queryConstant(), de.queryValue())){
-  //             newAddition = addTerms(newAddition, SmtFactory.createMultiplication(SmtFactory.createValue(mult.queryConstant()/de.queryValue()),mult.queryChild()));
-  //           }
-  //           else{
-  //             newAddition = addTerms(newAddition, SmtFactory.createMultiplication(SmtFactory.createDivision(SmtFactory.createValue(mult.queryConstant()),de),mult.queryChild()));
-  //           }
-  //           System.out.println(newAddition);
-  //         }
-  //         else if (num.queryChild(i) instanceof IVar){
-  //           System.out.println("instance of ivar");
-  //           newAddition = addTerms(newAddition, SmtFactory.createMultiplication(SmtFactory.createDivision(SmtFactory.createValue(1),de), num.queryChild(i)));
-  //           System.out.println(newAddition);
-  //         }
-  //         else if (num.queryChild(i) instanceof IValue){
-  //           System.out.println("instance of ivalue");
-  //           IValue value = (IValue) num.queryChild(i);
-  //           if (divisionResultInteger(value.queryValue(),de.queryValue())){
-  //             newAddition = addTerms(newAddition, SmtFactory.createValue(value.queryValue()/de.queryValue()));
-  //           }
-  //           else{
-  //             newAddition = addTerms(newAddition, SmtFactory.createDivision(value,de));
-  //           } 
-  //         }
-  //       }
-  //     }
-  //     System.out.println("returning: " + newAddition);
-  //     System.out.println("returning simplified: " + newAddition.simplify());
-  //     return newAddition.simplify();
-  //   }
-  //   return expr;
-  // }
-
-
   public QExpression replace (QExpression expr, QVar oldVar, QExpression newExpr){
+    //replace oldVar in expr for newExpr
     switch (expr) {
       case QVar x: if (x == oldVar){
         return newExpr; 
@@ -422,24 +437,13 @@ public class InternalSolver implements SmtSolver {
       collectConstants(list, expressions.get(i));
     }
     for (QValue constant : list){
-      if (constant.simplify().queryNumerator() < 0){
+      if (constant.queryNumerator() < 0){
         System.out.println("i have found constant < 0 : " + constant);
         return false;
       }
     }
     return true;
   }
-
-  /**
-   * TODO: this should return true if we can prove that the given problem is valid, and false if
-   * we cannot prove validity.  Note that if we let phi be the negation of the problem (use:
-   * problem.queryCombinedConstraint().negate()), then we have validity exactly if we can show that
-   * phi is NOT satisfiabile.
-   */
-  public boolean checkValidity(SmtProblem problem) {
-    return !checkSatisfiability(problem).isYes();
-  }
-
 
   public ArrayList<QExpression> addUniversalSlackVariable (QVar slackVariable, ArrayList<QExpression> expressions){
     for (int i =0; i < expressions.size(); i++){
@@ -455,12 +459,15 @@ public class InternalSolver implements SmtSolver {
   public ArrayList<QExpression> addIndividualSlackVariables (SmtProblem problem, ArrayList<QExpression> expressions){
     //with coefficient -1, not sure if thats correct
     int index = problem.numberIntegerVariables()+1;
+    //ArrayList<QVar> slackVariables = new ArrayList<>();
     for (int i =0; i < expressions.size(); i++){
       QVar slackVariable = new QVar(index, "y"+(i+1));
       index++;
-      basis.add(slackVariable.queryName());
+      basis.add(slackVariable);
       expressions.set(i, new QAddition(expressions.get(i), new QMult(new QValue(-1,1), slackVariable)));
+      //slackVariables.add(slackVariable);
     }
+    //for (QVar v : slackVariables) expressions.add(v);
     return expressions;
   }
 
@@ -507,179 +514,5 @@ public class InternalSolver implements SmtSolver {
         throw new Error("Expression of the form " + expr.toString() + " not supported!");
     }
   }
-  
-//   public ArrayList<ArrayList<Double>> makeSimplexTableau (SmtProblem problem, ArrayList<IntegerExpression> expressions){
-//     ArrayList<ArrayList<Double>> simplexTableau = new ArrayList<>();
-//     System.out.println(expressions);
-//     Set<IVar> vars = new HashSet<IVar>();
-//     for (IntegerExpression expr : expressions){
-//       collectVariables(vars, expr);
-//     }
-//     for (IntegerExpression expr : expressions){
-//       ArrayList<Double> row = new ArrayList<>();
-//       for (IVar var : vars){
-//         row.add( (double)getCount(var, expr));
-//       }
-//       ArrayList<Double> list = new ArrayList<>();
-//       collectConstants(list, expr);
-      
-//       for (Double d : list){
-//         row.add(d);
-//       }
-      
-//       simplexTableau.add(row);
-//     }
-//     simplexTableau.get(simplexTableau.size()-1).add(0.0);
-//     // ArrayList<Double> objFuncRow = new ArrayList<>();
-//     // for (int i =0; i < simplexTableau.get(0).size(); i++){
-//     //   objFuncRow.add(0.0);
-//     // }
-//     // objFuncRow.add(-1.0);
-//     // objFuncRow.add(0.0);
 
-//     // for (IVar var: vars){
-//     //   objFuncRow.add((double)getCount(var, obj_func));
-//     // }
-//     // objFuncRow.add(0.0);
-//     //simplexTableau.add(objFuncRow);
-
-//     return simplexTableau;
-//   }
-
-//   public Boolean pivotFound (ArrayList<ArrayList<Double>> matrix){
-//     //returns true if there is a negative number in the objective row
-//     for (double i : matrix.get(matrix.size()-1)){
-//       if (i < 0){
-//         return true;
-//       }
-//     }
-//     return false;
-//   }
-
-//   public int pivotColumn(ArrayList<ArrayList<Double>> matrix){
-//     //returns index of lowest value in objective row
-//     int lowestElementIndex = 0;
-//     for (int i = 1; i < matrix.get(matrix.size()-1).size()-1; i++){
-//       if (matrix.get(matrix.size()-1).get(i) < matrix.get(matrix.size()-1).get(lowestElementIndex)){
-//         lowestElementIndex = i;
-//       }
-//     }
-//     return lowestElementIndex;
-//   }
-
-//   public int pivotRow (int pivotColumn, ArrayList<ArrayList<Double>> matrix){
-//     //use only non negative entries
-//     int startIndex =0;
-//     while (matrix.get(startIndex).get(matrix.get(startIndex).size()-1) <= 0 || matrix.get(startIndex).get(pivotColumn) <= 0){
-//       startIndex++;
-//       System.out.println("increasing start index " + startIndex);
-//     } 
-//     System.out.println("size: " + matrix.get(0).size());
-//     if (startIndex== matrix.get(0).size()){
-//       System.out.println("unbounded solution");
-//       return 0;
-//     }
-//     else {
-//       double lowestQuotient = matrix.get(startIndex).get(matrix.get(startIndex).size()-1) / matrix.get(startIndex).get(pivotColumn);
-//       for (int i =startIndex; i < matrix.size()-1; i++){
-//         if (matrix.get(i).get(pivotColumn) > 0 && matrix.get(i).get(matrix.get(i).size()-1) > 0){
-//           System.out.println("dividing " + matrix.get(i).get(matrix.get(i).size()-1) + " and " + matrix.get(i).get(pivotColumn));
-//           if (matrix.get(i).get(matrix.get(i).size()-1) / matrix.get(i).get(pivotColumn) < lowestQuotient){
-//             System.out.println (matrix.get(i).get(matrix.get(i).size()-1) / matrix.get(i).get(pivotColumn) + " is smaller than " + lowestQuotient);
-//             lowestQuotient = matrix.get(i).get(matrix.get(i).size()-1) / matrix.get(i).get(pivotColumn);
-//             startIndex = i;
-//           }
-//         }
-//       }
-//       return startIndex;
-//     }
-
-//   }
-
-
-//   public int allNegative(int pivotColumn, ArrayList<ArrayList<Double>> matrix){
-//     int lowestIndex = 0;
-//     double lowestQuotient = matrix.get(0).get(matrix.get(0).size()-1) / matrix.get(0).get(pivotColumn);
-//     for (int i =0; i < matrix.size()-1; i++){
-//       if (matrix.get(i).get(matrix.get(i).size()-1) / matrix.get(i).get(pivotColumn) < lowestQuotient){
-//         lowestQuotient = matrix.get(i).get(matrix.get(i).size()-1) / matrix.get(i).get(pivotColumn);
-//         lowestIndex = i;
-//       }
-//     }
-//     return lowestIndex;
-
-//   }
-
-//   public void printSimplexTableau (ArrayList<ArrayList<Double>> simpTab){
-//     for (int i =0; i < simpTab.size(); i++){
-//       System.out.print("[ ");
-//       for (int j =0; j < simpTab.get(i).size(); j++){
-//         System.out.print(simpTab.get(i).get(j) + ", ");
-//       }
-//       System.out.println("] ");
-//     }
-//   }
-//   public ArrayList<ArrayList<Double>> step (ArrayList<ArrayList<Double>> matrix, int pivotColumn, int pivotRow){
-//     //set pivot element to 1
-//     double factor = matrix.get(pivotRow).get(pivotColumn);
-//     for (int j =0; j < matrix.get(pivotRow).size(); j++){
-//       double newValue = matrix.get(pivotRow).get(j)/factor;
-//       matrix.get(pivotRow).set(j, newValue);
-//     }
-//     //find first row that is not the pivot row
-//     //gaat fout, could get i-i in row
-//     //doe multiple of pivot row eraf
-    
-//     for (int j =0; j < matrix.size(); j++){
-//       if (j != pivotRow){
-//         factor = matrix.get(pivotRow).get(pivotColumn)/matrix.get(j).get(pivotColumn);
-//         System.out.println ("subtracting " + factor + " times row " + pivotRow + " from row " + j );
-//         for (int k =0; k < matrix.get(j).size(); k++){
-//           matrix.get(j).set(k,matrix.get(j).get(k)-factor*matrix.get(pivotRow).get(k));
-//         }
-//       }
-//     }
-//     printSimplexTableau(matrix);
-//     return matrix;
-//   }
-//     // }
-//     // factor = matrix.get(i).get(pivotColumn);
-//     // System.out.println ("subtracting " + factor + " times, row " + pivotRow + " from row " + i);
-//     // for (int j =0; j < matrix.get(i).size(); j++){
-//     //   double newValue = matrix.get(i).get(j)-(factor*matrix.get(pivotRow).get(j));
-//     //   matrix.get(i).set(j,newValue);
-//     // }
-    
-
-
-//   public void simplexMethod(ArrayList<ArrayList<Double>> simpTab){
-//     ArrayList<Double> row1 = new ArrayList<>(Arrays.asList(1.0, 3.0, 1.0, 1.0, 0.0, 0.0, 12.0));
-//     ArrayList<Double> row2 = new ArrayList<>(Arrays.asList(1.0, 1.0, -1.0, 0.0, 1.0, 0.0, 10.0));
-//     ArrayList<Double> row3 = new ArrayList<>(Arrays.asList(1.0, -1.0, 1.0, 0.0, 0.0, 1.0, 7.0));
-//     ArrayList<Double> row4 = new ArrayList<>(Arrays.asList(0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0));
-//     simpTab.add(row1);
-//     simpTab.add(row2);
-//     simpTab.add(row3);
-//     simpTab.add(row4);
-//     ArrayList<Integer> baseVariables = new ArrayList<>();
-//     simpTab.get(1).set(1,-1.0);
-
-//     for (int i=0; i < simpTab.size(); i++){
-//       baseVariables.add(0);
-//     }
-//     System.out.println("base:" + baseVariables);
-//     printSimplexTableau(simpTab);
-//     while (pivotFound(simpTab)){
-//       printSimplexTableau (simpTab);
-//       int pivotColumn= pivotColumn(simpTab);
-//       int pivotRow = pivotRow(pivotColumn, simpTab);
-
-//       System.out.println("pivot row and column: " + pivotRow + " " + pivotColumn);
-//       simpTab = step(simpTab, pivotColumn, pivotRow);
-//       baseVariables.set(pivotRow, pivotRow);
-//       System.out.println(baseVariables);
-//     }
-
-
-//   }
 }

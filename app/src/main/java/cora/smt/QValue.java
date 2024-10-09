@@ -6,18 +6,25 @@ public final class QValue extends QExpression {
   private int _denominator;
 
 
-
+  //write simplify function
   public QValue(int n, int d) {
     if (d == 0) {
       throw new IllegalArgumentException("Denominator cannot be zero.");
     }
+    _numerator = n/gcd(n,d);
+    _denominator = d/gcd(n,d);
     // Handle negative denominator to keep denominator positive
-    if (d < 0) {
-      n = -n;
-      d = -d;
+    if (_denominator < 0) {
+      _numerator = -_numerator;
+      _denominator = -_denominator;
     }
-    _numerator = n;
-    _denominator = d;
+  }
+
+  public static int gcd(int a, int b) {
+    if (b == 0) {
+        return a;
+    }
+    return gcd(b, a % b);
   }
 
 
