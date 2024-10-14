@@ -106,6 +106,12 @@ public final class QAddition extends QExpression {
     return new QAddition(cs);
   }
 
+  public QValue evaluate(QValuation val) {
+    QValue ret = new QValue(0,1);
+    for (int i = 0; i < _children.size(); i++) ret.add(_children.get(i).evaluate(val));
+    return ret;
+  }
+
   public int compareTo(QExpression other) {
     return -1;
     //throw new UnsupportedOperationException("TODO: Not yet implemented");

@@ -12,7 +12,7 @@ public sealed abstract class QExpression implements Comparable<QExpression> perm
         return multiply(new QValue(-1,1));
     }
 
-
+    public abstract QValue evaluate(QValuation val);
 
 
     public QExpression multiply(QValue constant) {

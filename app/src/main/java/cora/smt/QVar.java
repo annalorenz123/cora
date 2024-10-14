@@ -1,4 +1,5 @@
 package cora.smt;
+import charlie.exceptions.SmtEvaluationException;
 
 public final class QVar extends QExpression {
   private int _index;
@@ -26,6 +27,11 @@ public final class QVar extends QExpression {
 
   public QExpression simplify() {
     return this;
+  }
+
+  public QValue evaluate(QValuation val) {
+    if (val == null) throw new SmtEvaluationException("i" + _index + " (" + _name + ")");
+    else return val.queryQValueAssignment(_index);
   }
 
   public int compareTo(QExpression other) {

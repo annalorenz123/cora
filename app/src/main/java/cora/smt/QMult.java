@@ -20,6 +20,11 @@ public final class QMult extends QExpression {
     return _main;
   }
 
+  public QValue evaluate(QValuation val) {
+    return _constant.multiply(_main.evaluate(val));
+  }
+
+
   public QExpression simplify() {
     //if (_simplified) return this;
     if (_constant.queryNumerator() == 0) return new QValue(0,1);

@@ -92,7 +92,8 @@ public class TermAnalyser {
               ret.extend(x, TheoryFactory.createValue(val.queryBoolAssignment(x.queryIndex())));
             }
             else if (x.queryType().equals(TypeFactory.intSort)) {
-              ret.extend(x, TheoryFactory.createValue(val.queryIntAssignment(x.queryIndex())));
+              IVar v = translator.getIntegerVariableFor(x);
+              ret.extend(x, TheoryFactory.createValue(val.queryIntAssignment(v.queryIndex())));
             }
           }
           yield new Result.YES(ret);

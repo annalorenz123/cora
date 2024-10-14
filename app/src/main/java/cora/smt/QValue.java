@@ -44,12 +44,15 @@ public final class QValue extends QExpression {
     return this;
   }
 
+  public QValue evaluate(QValuation val) {
+    return this;
+  }
+
 
   public QValue add(QValue q) {
     return new QValue ((_numerator * q.queryDenominator()) + (_denominator* q.queryNumerator()), _denominator * q.queryDenominator());
   }
 
-  //cannot be Qexpression???
   public QValue multiply(QValue value) {
     return new QValue(value.queryNumerator() * _numerator, value.queryDenominator()*_denominator);
   }

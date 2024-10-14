@@ -122,6 +122,12 @@ public class SimplexTest{
         assertEquals(internalSolver.exprWithLowestConstant(qexpressions), expr2);
     }
 
+    @Test
+    public void testgetRoundedValuations(){
+
+    
+    }
+
 
 
 }

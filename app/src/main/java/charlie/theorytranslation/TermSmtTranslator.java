@@ -94,7 +94,7 @@ public class TermSmtTranslator {
    * If the given variable has been used before, returns the same IVar as we used then; otherwise,
    * generates a new IVar and both stores and returns it.
    */
-  private IVar getIntegerVariableFor(Variable x) {
+  public IVar getIntegerVariableFor(Variable x) {
     if (!_ivars.containsKey(x)) _ivars.put(x, _problem.createIntegerVariable());
     return _ivars.get(x);
   }
