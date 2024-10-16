@@ -113,7 +113,17 @@ public final class QAddition extends QExpression {
   }
 
   public int compareTo(QExpression other) {
-    return -1;
-    //throw new UnsupportedOperationException("TODO: Not yet implemented");
+    return switch (other) {
+      case QValue v -> 1;
+      case QVar x -> 1;
+      case QMult cm -> compareTo(cm.queryChild()) <= 0 ? -1 : 1;
+      case QAddition a -> {
+        for (int i = _children.size()-1, j = a._children.size()-1; i >= 0 && j >= 0; i--, j--) {
+          int c = _children.get(i).compareTo(a._children.get(j));
+          if (c != 0) yield c;
+        }
+        yield _children.size() - a._children.size();
+      }
+    };
   }
 }

@@ -39,9 +39,17 @@ public final class QMult extends QExpression {
     if (constant.queryNumerator() == constant.queryDenominator()) return this;
     return new QMult(newconstant, _main);
   }
+
   public int compareTo(QExpression other) {
-    return -1;
-    //throw new UnsupportedOperationException("TODO: Not yet implemented");
+    return switch (other) {
+      case QValue v -> 1;
+      case QMult cm -> {
+        int c = _main.compareTo(cm.queryChild());
+        if (c != 0) yield c;
+        else yield _constant.compareTo(cm.queryConstant());
+      }
+      default -> _main.compareTo(other) >= 0 ? 1 : -1;
+    };
   }
 
 }

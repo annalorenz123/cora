@@ -25,5 +25,9 @@ public sealed abstract class QExpression implements Comparable<QExpression> perm
     public final String toString() {
         QExpPrinter printer = new QExpPrinter();
         return printer.print(this);
-  }
+    }
+
+    public final boolean equals(Object other) {
+        return (other instanceof QExpression) && compareTo((QExpression)other) == 0;
+    }
 }    
