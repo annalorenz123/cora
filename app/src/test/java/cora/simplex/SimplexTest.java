@@ -123,10 +123,18 @@ public class SimplexTest{
     }
 
     @Test
-    public void testgetRoundedValuations(){
+    public void testGetRoundedValuations(){
 
     
     }
+
+    @Test
+    public void testAdjustProblems(){
+
+    
+    }
+
+
 
 
 

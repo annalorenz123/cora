@@ -34,72 +34,68 @@ public class InternalSolver implements SmtSolver {
    * Figure out if we should return YES(Valuation val), NO(), or MAYBE(String reason).
    */
   public SmtSolver.Answer checkSatisfiability(SmtProblem problem){
-    Constraint constraints = problem.queryCombinedConstraint();
-    ArrayList<Constraint> children = getConstraints(constraints);
+    Constraint constraint = problem.queryCombinedConstraint();
+    ArrayList<Constraint> children = getConstraints(constraint);
     System.out.println (children);
     ArrayList<IntegerExpression> expressions = getExpressions(children);
     System.out.println("expressions: " +expressions);
-    ArrayList<QExpression> Qexpressions = convertToQExpressions(expressions);
-    Set<ArrayList<QExpression>> problems = new HashSet<>();
-    problems.add(Qexpressions);
-    //Iterator<ArrayList<QExpression>> it = problems.iterator();
-    boolean firstTime = true;
-    int iterations = 0;
-    while (problems.size() > 0 && iterations <100){
-      iterations++;
-
-      System.out.println ("problems: ");
-      Iterator<ArrayList<QExpression>> it = problems.iterator();
-      while (it.hasNext()){
-        System.out.println (it.next());
-      }
-      it = problems.iterator();
-      final ArrayList<QExpression> currentProblem = new ArrayList<>(it.next());
-      
-      System.out.println ("CURRENT PROBLEM: " + currentProblem);
-      it = problems.iterator();
-      final ArrayList<QExpression> originalProblem = new ArrayList<>(it.next());
-      ArrayList<QValue> solution = getSolution(problem.numberIntegerVariables(), currentProblem);
-      Answer answer = checkSolution(solution, problem.numberIntegerVariables(), expressions);
-      problems.remove(originalProblem);
-      
-      if (answer instanceof Answer.YES) return answer;
-      if (answer instanceof Answer.NO){
-        if (problems.size()==0) return answer;
-        else System.out.println ("removed first problem but we have more options");
-      }
-      if (answer instanceof Answer.MAYBE){
-        Qexpressions = convertToQExpressions(expressions);
-        QValuation qVal = makeQValuation(problem.numberIntegerVariables(), solution);
-        System.out.println ("qvaluation: " + qVal);
-      
-        ArrayList<QValuation> roundedValuations = getRoundedValuations(problem.numberIntegerVariables(), qVal);
-        System.out.println ("rounded valuations: " + roundedValuations);
-
-        for (QValuation q : roundedValuations){
-          Valuation v = convertQValToVal(q, problem.numberIntegerVariables());
-          if (extraCheck(v, expressions)) return new Answer.YES(v);
-        }
-        System.out.println ("there is no integer solution so we add an expression");
-        if (firstTime) {
-          problems.addAll(getNewProblems(convertToQExpressions(expressions), solution)); 
-          firstTime = false;
-        }
-        else {
-          //answer = tryExactValue(convertToQExpressions(expressions),currentProblem);
-          problems.addAll(adjustProblems(convertToQExpressions(expressions),originalProblem));
-          problems.addAll(getNewProblems(convertToQExpressions(expressions), solution)); 
-          checkForDuplicates(problems);
-        }
-      }
-    }
-    return new Answer.MAYBE("not implemented yet.");
+    return BitBlasting.checkSatisfiability(problem, expressions);
     
-   
-      //if returns no remove that problem
-      //if returns yes return int solution or move on to next var
-      //if returns maybe try exact value if not then add constraint of 1 value beneath it
-      //solution = getSolution(problem, Qexpressions);
+    // ArrayList<QExpression> Qexpressions = convertToQExpressions(expressions);
+    // Set<ArrayList<QExpression>> problems = new HashSet<>();
+    // problems.add(Qexpressions);
+    // //Iterator<ArrayList<QExpression>> it = problems.iterator();
+    // boolean firstTime = true;
+    // int iterations = 0;
+    // while (problems.size() > 0 && iterations <100){
+    //   iterations++;
+
+    //   System.out.println ("problems: ");
+    //   Iterator<ArrayList<QExpression>> it = problems.iterator();
+    //   while (it.hasNext()){
+    //     System.out.println (it.next());
+    //   }
+    //   it = problems.iterator();
+    //   final ArrayList<QExpression> currentProblem = new ArrayList<>(it.next());
+      
+    //   System.out.println ("CURRENT PROBLEM: " + currentProblem);
+    //   it = problems.iterator();
+    //   final ArrayList<QExpression> originalProblem = new ArrayList<>(it.next());
+    //   ArrayList<QValue> solution = getSolution(problem.numberIntegerVariables(), currentProblem);
+    //   Answer answer = checkSolution(solution, problem.numberIntegerVariables(), expressions);
+    //   problems.remove(originalProblem);
+      
+    //   if (answer instanceof Answer.YES) return answer;
+    //   if (answer instanceof Answer.NO){
+    //     if (problems.size()==0) return answer;
+    //     else System.out.println ("removed first problem but we have more options");
+    //   }
+    //   if (answer instanceof Answer.MAYBE){
+    //     Qexpressions = convertToQExpressions(expressions);
+    //     QValuation qVal = makeQValuation(problem.numberIntegerVariables(), solution);
+    //     System.out.println ("qvaluation: " + qVal);
+      
+    //     ArrayList<QValuation> roundedValuations = getRoundedValuations(problem.numberIntegerVariables(), qVal);
+    //     System.out.println ("rounded valuations: " + roundedValuations);
+
+    //     for (QValuation q : roundedValuations){
+    //       Valuation v = convertQValToVal(q, problem.numberIntegerVariables());
+    //       if (extraCheck(v, expressions)) return new Answer.YES(v);
+    //     }
+    //     System.out.println ("there is no integer solution so we add an expression");
+    //     if (firstTime) {
+    //       problems.addAll(getNewProblems(convertToQExpressions(expressions), solution)); 
+    //       firstTime = false;
+    //     }
+    //     else {
+    //       //answer = tryExactValue(convertToQExpressions(expressions),currentProblem);
+    //       problems.addAll(adjustProblems(convertToQExpressions(expressions),originalProblem));
+    //       problems.addAll(getNewProblems(convertToQExpressions(expressions), solution)); 
+    //       checkForDuplicates(problems);
+    //     }
+    //   }
+    // }
+    // return new Answer.MAYBE("not implemented yet.");
   }
 
   /**
@@ -136,11 +132,6 @@ public class InternalSolver implements SmtSolver {
   public ArrayList<ArrayList<QExpression>> adjustProblems (ArrayList<QExpression> Qexpressions, ArrayList<QExpression> currentProblem){
     System.out.println ("current problem: " + currentProblem);
     ArrayList<ArrayList<QExpression>> adjustedProblems = new ArrayList<>();
-    //ArrayList<QValue> constants = new ArrayList<>();
-    //System.out.println ("looking for constants in: " + currentProblem.get(currentProblem.size()-1));
-    //collectConstants(constants, currentProblem.get(currentProblem.size()-1));
-    //if (constants.isEmpty()) constants.add(new QValue(0,1));
-    //else if (constants.get(0).queryNumerator() < 0) constants.set(0, new QValue(constants.get(0).queryNumerator()*-1, constants.get(0).queryDenominator()));
 
     currentProblem.add(currentProblem.get(currentProblem.size()-1).negate());
     adjustedProblems.add(new ArrayList<>(currentProblem));
@@ -154,17 +145,9 @@ public class InternalSolver implements SmtSolver {
     Iterator<QVar> it = variables.iterator();
     if (variables.isEmpty()) return adjustedProblems;
     QVar variable = it.next();
-    // System.out.println ("found: " + variable);
-    // System.out.println ("SWAPPING " + variable + " for " + constants.get(0));
     if (variables.size() != 1){
       throw new Error(currentProblem.get(currentProblem.size()-1) + " should only contain one variable: ");
     }
-    // ArrayList<QExpression> copyCurrentProblem = new ArrayList<>(currentProblem);
-    // for (int i =0; i < copyCurrentProblem.size(); i++){
-    //   System.out.println ("setting " + i + " to " + replace(copyCurrentProblem.get(i), variable, constants.get(0)).simplify());
-    //   copyCurrentProblem.set(i, replace(copyCurrentProblem.get(i), variable, constants.get(0)).simplify());
-    // }
-    // adjustedProblems.add(copyCurrentProblem);
     if (getCount(variable, currentProblem.get(currentProblem.size()-1)).queryNumerator() < 0){
       currentProblem.set(currentProblem.size()-1, new QAddition (currentProblem.get(currentProblem.size()-1), new QValue(1,1)).simplify());
     }
@@ -199,14 +182,12 @@ public class InternalSolver implements SmtSolver {
           final int solutionSize = roundedSolutions.size();
           for (int k = 0; k < solutionSize; k++){
             roundedSolutions.get(k).setQValue(i, new QValue(roundedUp,1));
-            //roundedSolutions.add(roundedSolutions.get(k));
             QValuation copiedVal = new QValuation();
             for (int j =0; j <= numberOfVariables; j++){
               copiedVal.setQValue(j, roundedSolutions.get(k).queryQValueAssignment(j));
             }
             roundedSolutions.add(copiedVal);
             roundedSolutions.get(roundedSolutions.size()-1).setQValue(i, new QValue(roundedDown,1));
-            //roundedSolutions.add(copiedVal);
           }
         }
       }
