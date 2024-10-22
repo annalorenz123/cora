@@ -150,6 +150,18 @@ public class SmtFactory {
     return new Conjunction(a, b);
   }
 
+  public static Constraint createConjunction(List<Constraint> args) {
+    if (args == null) throw new NullStorageException("Conjunction", "argument list");
+    for (int i = 0; i < args.size(); i++) {
+      if (args.get(i) == null) {
+        throw new NullStorageException("Conjunction", "argument " + (i+1));
+      }
+    }
+    if (args.size() == 0) return new Falsehood();
+    if (args.size() == 1) return args.get(0);
+    return new Conjunction(args);
+  }
+
   public static Constraint createDisjunction(Constraint a, Constraint b) {
     if (a == null) throw new NullStorageException("Disjunction", "left argument");
     if (b == null) throw new NullStorageException("Disjunction", "right argument");
@@ -171,7 +183,7 @@ public class SmtFactory {
   public static Constraint createImplication(Constraint a, Constraint b) {
     if (a == null) throw new NullStorageException("Implication", "left argument");
     if (b == null) throw new NullStorageException("Implication", "right argument");
-    return new Disjunction(new Not(a), b);
+    return new Disjunction(new Not(a).simplify(), b).simplify();
   }
 
   public static Constraint createIff(Constraint a, Constraint b) {

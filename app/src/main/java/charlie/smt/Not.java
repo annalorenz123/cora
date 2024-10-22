@@ -44,5 +44,11 @@ public final class Not extends Constraint {
   public boolean equals(Constraint other) {
     return (other instanceof Not) && (_negated.equals(((Not)other).queryChild()));
   }
+
+  public Constraint simplify(){
+    if (_negated instanceof Falsehood) return SmtFactory.createTrue();
+    if ( _negated instanceof Truth) return SmtFactory.createFalse();
+    return this;
+  }
 }
 

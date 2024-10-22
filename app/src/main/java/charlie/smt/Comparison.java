@@ -55,5 +55,9 @@ abstract sealed class Comparison extends Constraint permits Geq0, Is0, Neq0 {
     Comparison c = (Comparison)other;
     return c.symbol().equals(symbol()) && _expr.equals(c.queryExpression());
   }
+
+  public Constraint simplify(){
+    return this;
+  }
 }
 
