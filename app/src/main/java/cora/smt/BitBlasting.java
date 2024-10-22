@@ -6,24 +6,61 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class BitBlasting{
-    static int bidWidth = 4;
-
+    static int bidWidth = 5;
+    static ArrayList<ArrayList<Constraint>> allVariables = new ArrayList<>();
 
 
     public static SmtSolver.Answer checkSatisfiability(SmtProblem problem, ArrayList<IntegerExpression> expressions){
         if (expressions.size()==0) return new SmtSolver.Answer.YES(new Valuation());
-        ArrayList<Constraint> c = new ArrayList<>();
+        ArrayList<IntegerExpression> c = new ArrayList<>();
         //multiple expressions add later
+        ArrayList<Constraint> args = new ArrayList<>();
         for (int i =0; i < expressions.size(); i++){
+            //make switch
             if (expressions.get(i) instanceof Addition a){
-                c = add(problem, a);
+                c = makeSides(a);
             }
+            else if (expressions.get(i) instanceof CMult cm){
+                c = makeSides(cm);
+            }
+            else if (expressions.get(i) instanceof IVar v){
+                c.add(v);
+                c.add(SmtFactory.createValue(0));
+            }
+            // else if (expressions.get(i) instanceof IValue v){
+            //     if (v.queryValue() >= 0) c = SmtFactory.createTrue();
+            //     else c = SmtFactory.createFalse();
+            // }
+            else throw new Error("expression of form: " + expressions.get(i) + " not supported yet.");
+            System.out.println (c);
+            ArrayList<Constraint> leftSide = convert(problem, c.get(0));
+            ArrayList<Constraint> rightSide = convert(problem, c.get(1));
+            System.out.println ("left side converted: " + leftSide);
+            System.out.println ("right side converted: " + rightSide);
+            Constraint end = greaterOrEqual(leftSide, rightSide);
+            System.out.println ("end: " + end);
+            args.add(end);
+            // if (expressions.get(i) instanceof IVar v){
+            //     System.out.println ("found variable");
+            //     c = convert(problem, v);
+            // }
+            
+            // else if (expressions.get(i) instanceof CMult mult){
+            //     c = multiply(convert((IValue)SmtFactory.createValue(mult.queryConstant())), convert(problem, (IVar)mult.queryChild()));
+            // }
+
         }
-        System.out.println (c);
-        for (int i =0; i < c.size(); i++){
-            System.out.println ("s" + i + ": " + c.get(i));
-        }
-        test(problem,c);
+        Constraint endConjunction = SmtFactory.createConjunction(args);
+        System.out.println ("end conjunction: " + endConjunction);
+        test(problem, endConjunction);
+        
+         
+        // for (int i =0; i < c.size(); i++){
+        //     System.out.println ("s" + i + ": " + c.get(i));
+        // }
+        
+        //System.out.println ("FINAL FORMULA:" + greaterOrEqual(c));
+        
         // if (expressions.size()==1){
         //     System.out.println ("expression size is 1");
         //     if (expressions.get(0) instanceof Addition a){
@@ -42,6 +79,19 @@ public class BitBlasting{
 
     }
 
+
+    public static ArrayList<Constraint> convert (SmtProblem problem, IntegerExpression expression){
+        ArrayList<Constraint> constraint = new ArrayList<>();
+        switch (expression){
+            case IVar v: constraint = convert(problem, v); break;
+            case IValue v : constraint = convert(v); break;
+            case Addition a : constraint = add(problem, a); break;
+            case CMult cm : constraint = multiply(convert((IValue) SmtFactory.createValue(cm.queryConstant())), convert(problem,(IVar) cm.queryChild())); break;
+            default : throw new Error (expression + " not supported yet.");
+        }
+        return constraint;
+    }
+
     // public static Constraint equals (SmtProblem problem, IntegerExpression expression){
     //     switch (expression){
     //         case Addition a : 
@@ -55,7 +105,43 @@ public class BitBlasting{
         
     // }
 
+    public static IntegerExpression addTerms(IntegerExpression expr1, IntegerExpression expr2) {
+        return SmtFactory.createAddition (expr1, expr2);
+  }
 
+
+    public static ArrayList<IntegerExpression> makeSides (CMult cm){
+        IntegerExpression leftSide = SmtFactory.createValue(0);
+        IntegerExpression rightSide = SmtFactory.createValue(0);
+        if (cm.queryConstant() < 0) rightSide= addTerms(rightSide, SmtFactory.createMultiplication(cm.queryConstant()*-1, cm.queryChild()));
+        else leftSide = addTerms(cm,leftSide);
+        ArrayList<IntegerExpression> result = new ArrayList<>();
+        result.add(leftSide.simplify());
+        result.add(rightSide.simplify());
+        return result;
+    }
+
+    public static ArrayList<IntegerExpression> makeSides (Addition a){
+        IntegerExpression leftSide = SmtFactory.createValue(0);
+        IntegerExpression rightSide = SmtFactory.createValue(0);
+        for (int i =1; i <= a.numChildren(); i++){
+            switch (a.queryChild(i)){
+                case IVar v : leftSide = addTerms(v, leftSide); break;
+                case IValue v : 
+                    if (v.queryValue() < 0) rightSide= addTerms(rightSide, SmtFactory.createValue(v.queryValue()*-1)); 
+                    else leftSide = addTerms(v, leftSide); break;
+                case CMult cm : 
+                    if (cm.queryConstant() < 0) rightSide= addTerms(rightSide, SmtFactory.createMultiplication(cm.queryConstant()*-1, cm.queryChild()));
+                    else leftSide = addTerms(cm,leftSide); break;
+                default : throw new Error (a.queryChild(i) + " not supported.");
+
+            }
+        }
+        ArrayList<IntegerExpression> result = new ArrayList<>();
+        result.add(leftSide.simplify());
+        result.add(rightSide.simplify());
+        return result;
+    }
 
 
     public static void main(String[] args) {
@@ -69,6 +155,7 @@ public class BitBlasting{
         switch (a.queryChild(1)){
             case IVar v : con = convert(problem, v); break;
             case IValue val : con = convert(val); break;
+            case CMult c : con = multiply(convert((IValue)SmtFactory.createValue(c.queryConstant())), convert(problem, (IVar)c.queryChild())); break;
             default: throw new Error(a.queryChild(1).getClass() + " not supported yet.");
         }
         System.out.println (a.queryChild(1) + " converted is " + con);
@@ -76,23 +163,72 @@ public class BitBlasting{
             
             switch (a.queryChild(j)){
                 //case IValue val: con = add(problem, con, convert(val)); break;
-                case IVar var: con = add(problem, con, convert(problem, var)); break;
-                case IValue v : con = add(problem, con, convert(v)); break;
+                case IVar var: con = add(con, convert(problem, var)); break;
+                case IValue v : con = add(con, convert(v)); break;
+                case CMult c : con = add(con, multiply(convert((IValue)SmtFactory.createValue(c.queryConstant())), convert(problem, (IVar)c.queryChild()))); break;
                 default: throw new Error(a.queryChild(j).getClass() + " not supported yet.");
             }
         }
+        System.out.println ("result of addition: " + con);
         return con;
 
     }
 
+    public static ArrayList<Constraint> leftShift(ArrayList<Constraint> formula, int i){
+        ArrayList<Constraint> constraints = new ArrayList<>();
+        System.out.println ("formula before shifing: " + formula);
+        for (int j = 0; j < i; j++){
+            formula.add(0, SmtFactory.createFalse());
+            formula.remove(formula.size()-1);
+        }
+        System.out.println ("formula after shifing: " + formula);
+        return formula;
+    }
+
+    public static ArrayList<Constraint> multiply(ArrayList<Constraint> lhs, ArrayList<Constraint> rhs) {
+        System.out.println ("going to multiply " + lhs + " and " + rhs);
+
+        ArrayList<Constraint> result = new ArrayList<>();
+
+        // Initialize result with zeros
+        for (int i = 0; i < bidWidth; i++) {
+            result.add(SmtFactory.createFalse()); // Placeholder for zero constraint
+        }
+
+        for (int i = 0; i < bidWidth; i++) {
+            Constraint left = lhs.get(i);
+            if (left.evaluate()){
+                ArrayList<Constraint> shifted = leftShift(rhs, i);
+                System.out.println ("going to add " + shifted + " AND " + result);
+                result = add(shifted, result);
+                System.out.println ("result is: " + result);
+            }
+            //Constraint partialProduct = lhs.get(i).and(rhs);
+            //partialProduct = partialProduct.leftShift(i); // Shift left according to the bit position
+
+            // Add partial products to the result
+            // for (int j = 0; j < result.size(); j++) {
+            //     if (j < partialProduct.size()) { // Ensure we stay within bounds
+            //         result.set(j, result.get(j).add(partialProduct)); // Assuming add handles constraints
+            //     }
+            // }
+        }
+
+        return result; // This represents the product
+    }
 
     public static ArrayList<Constraint> convert (SmtProblem problem, IVar v){
         ArrayList<Constraint> constraints = new ArrayList<>();
+        if (v.queryIndex() <= allVariables.size()){
+            System.out.println ("i already know " + v.queryName()+ " returning: "+ allVariables.get(v.queryIndex()-1));
+            return allVariables.get(v.queryIndex()-1);
+        } 
         for (int i =0; i < bidWidth; i++){
             constraints.add(problem.createBooleanVariable());
         }
         System.out.println ("converted " + v + " to " + constraints);
         //return SmtFactory.createConjunction(constraints);
+        allVariables.add(new ArrayList<>(constraints));
         return constraints;
     }
 
@@ -101,23 +237,31 @@ public class BitBlasting{
         System.out.println (value + " with length " + value.length());
         if (value.length() > bidWidth){
             if (canBeShortened(value)){
-                System.out.println (value + " can be shortened to " + value.substring(0, bidWidth));
-                value = value.substring(0, bidWidth);
+                System.out.println (value + " can be shortened to " + value.substring(value.length()-bidWidth, value.length()));
+                value = value.substring(value.length()-bidWidth, value.length());
             }
             else throw new Error ("Value " + v.queryValue() + " too big for bidwidth.");
         } 
+        if (value.length() < bidWidth) {
+            value = addZeros(value);
+            System.out.println ("added zeros: " + value);
+        }
         ArrayList<Constraint> constraints = new ArrayList<>();
-        for (int i =0; i < bidWidth; i++){
-            if (i >= value.length()){
-                constraints.add(SmtFactory.createFalse());
-            }
-            else if (value.charAt(i)=='1'){
+        for (int i =bidWidth-1; i >= 0; i--){
+            if (value.charAt(i)=='1'){
                 constraints.add(SmtFactory.createTrue());
             } 
             else constraints.add(SmtFactory.createFalse());
         }
         //return SmtFactory.createConjunction(constraints);
         return constraints;
+    }
+
+    public static String addZeros (String value){
+        for (int i = value.length(); i < bidWidth; i++){
+            value = "0" + value;
+        }
+        return value;
     }
 
     public static boolean canBeShortened (String binaryNumber){
@@ -127,8 +271,10 @@ public class BitBlasting{
         }
         if (allZeros) return true;
         boolean allOnes = true;
-        for (int i = bidWidth; i < binaryNumber.length(); i++){
-            if (binaryNumber.charAt(i) != '1') allOnes = false;
+        for (int i = binaryNumber.length()-bidWidth; i >= 0 ; i--){
+            if (binaryNumber.charAt(i) != '1') {
+                allOnes = false;
+            }
         }
         return allOnes;
     }
@@ -160,88 +306,210 @@ public class BitBlasting{
     //     System.out.println (endFormula);
     //     return endFormula;
 
-        
+    public static Constraint xor (Constraint a, Constraint b){
+        return SmtFactory.createConjunction(SmtFactory.createDisjunction(a,b).simplify(), SmtFactory.createNegation(SmtFactory.createConjunction(a,b).simplify()).simplify()).simplify();
+    }
     // }
 
-    public static ArrayList<Constraint> add (SmtProblem problem, ArrayList<Constraint> c, ArrayList<Constraint> d){
+     public static Constraint subtract(ArrayList<Constraint> minuend, ArrayList<Constraint> subtrahend) {
+
+        // Ensure both binary numbers are of the same length
+        int n = minuend.size();
+        ArrayList<Constraint> result = new ArrayList<>(n);
+        Constraint borrow = SmtFactory.createFalse(); // Initial borrow is false (no borrow)
+        
+        for (int i = 0; i < n; i++) {
+            // Get the bits from minuend and subtrahend at position i
+            Constraint a = minuend.get(i);  // Bit from the minuend
+            Constraint b = subtrahend.get(i); // Bit from the subtrahend
+
+            // Perform the subtraction at this bit position:
+            // result[i] = a XOR b XOR borrow
+            Constraint diff = xor(xor(a,b),borrow);
+            result.add(diff);
+
+            // Calculate the new borrow:
+            // borrow = (NOT a AND b) OR (borrow AND (NOT a XOR b))
+            Constraint newBorrow = SmtFactory.createDisjunction(SmtFactory.createConjunction(SmtFactory.createNegation(a).simplify(), b).simplify(), SmtFactory.createConjunction(borrow, xor(SmtFactory.createNegation(a),b)).simplify()).simplify();
+            // Update the borrow for the next bit position
+            borrow = newBorrow;
+        }
+
+        return borrow;
+    }
+
+    public static ArrayList<Constraint> add (ArrayList<Constraint> c, ArrayList<Constraint> d){
         //change
         // if (!(c instanceof Conjunction) || !(d instanceof Conjunction)) throw new Error (c + " or " + d + " not in proper type");
         // if (c instanceof Conjunction c1) if (c1.numChildren() != bidWidth) throw new Error (c + " does not have enough children.");
         // if (d instanceof Conjunction d1) if (d1.numChildren() != bidWidth) throw new Error (d + " does not have enough children.");
         // Conjunction c1 = (Conjunction) c;
         // Conjunction d1 = (Conjunction) d;
-
+        
 
         Constraint carry = SmtFactory.createFalse();
         ArrayList <Constraint> constraints = new ArrayList<>();
-        for (int i =0; i < bidWidth; i++){
+        for (int i =0; i < bidWidth ; i++){
             Constraint c_i = c.get(i);
             Constraint d_i = d.get(i);
-            Constraint c_xor_d= SmtFactory.createConjunction(SmtFactory.createDisjunction(c_i, d_i), SmtFactory.createNegation(SmtFactory.createConjunction(c_i, d_i)));
-            Constraint sum = SmtFactory.createConjunction(SmtFactory.createDisjunction(c_xor_d, carry), SmtFactory.createNegation(SmtFactory.createConjunction(c_xor_d, carry)));
+            Constraint c_xor_d= SmtFactory.createConjunction(SmtFactory.createDisjunction(c_i, d_i).simplify(), SmtFactory.createNegation(SmtFactory.createConjunction(c_i, d_i).simplify()).simplify()).simplify();
+            Constraint sum = SmtFactory.createConjunction(SmtFactory.createDisjunction(c_xor_d, carry).simplify(), SmtFactory.createNegation(SmtFactory.createConjunction(c_xor_d, carry).simplify()).simplify()).simplify();
 
             
             constraints.add(sum);
-            carry = SmtFactory.createDisjunction(SmtFactory.createConjunction(c_i,d_i), SmtFactory.createConjunction(carry, c_xor_d));
-            
+            carry = SmtFactory.createDisjunction(SmtFactory.createConjunction(c_i,d_i).simplify(), SmtFactory.createConjunction(carry, c_xor_d).simplify()).simplify();
+            //if (i == bidWidth-1) constraints.add(SmtFactory.createConjunction(sum, SmtFactory.createNegation(carry)));
         }
+        //two negative numbers -> negative outcome 
+        //two positive numbers -> positive outcome
+
         return constraints;
         //return SmtFactory.createConjunction(constraints);
 
         
     }
 
-    public static void test(SmtProblem problem, ArrayList<Constraint> formula){
+
+        public static Constraint addReturnCarry (ArrayList<Constraint> c, ArrayList<Constraint> d){
+        //change
+        // if (!(c instanceof Conjunction) || !(d instanceof Conjunction)) throw new Error (c + " or " + d + " not in proper type");
+        // if (c instanceof Conjunction c1) if (c1.numChildren() != bidWidth) throw new Error (c + " does not have enough children.");
+        // if (d instanceof Conjunction d1) if (d1.numChildren() != bidWidth) throw new Error (d + " does not have enough children.");
+        // Conjunction c1 = (Conjunction) c;
+        // Conjunction d1 = (Conjunction) d;
+        
+
+        Constraint carry = SmtFactory.createFalse();
+        ArrayList <Constraint> constraints = new ArrayList<>();
+        for (int i =0; i < bidWidth ; i++){
+            Constraint c_i = c.get(i);
+            Constraint d_i = d.get(i);
+            Constraint c_xor_d= SmtFactory.createConjunction(SmtFactory.createDisjunction(c_i, d_i).simplify(), SmtFactory.createNegation(SmtFactory.createConjunction(c_i, d_i).simplify()).simplify()).simplify();
+            Constraint sum = SmtFactory.createConjunction(SmtFactory.createDisjunction(c_xor_d, carry).simplify(), SmtFactory.createNegation(SmtFactory.createConjunction(c_xor_d, carry).simplify()).simplify()).simplify();
+
+            
+            constraints.add(sum);
+            carry = SmtFactory.createDisjunction(SmtFactory.createConjunction(c_i,d_i).simplify(), SmtFactory.createConjunction(carry, c_xor_d).simplify()).simplify();
+            //if (i == bidWidth-1) constraints.add(SmtFactory.createConjunction(sum, SmtFactory.createNegation(carry)));
+        }
+        //two negative numbers -> negative outcome 
+        //two positive numbers -> positive outcome
+
+        return carry;
+        //return SmtFactory.createConjunction(constraints);
+
+        
+    }
+
+    public static ArrayList<Constraint> negate (ArrayList<Constraint> formula){
+        for (int i =0; i < formula.size(); i++){
+            formula.set(i, formula.get(i).negate());
+        }
+        return add(formula, convert((IValue)SmtFactory.createValue(1)));
+    }
+
+
+    public static Constraint greaterOrEqual (ArrayList<Constraint> leftSide, ArrayList<Constraint> rightSide){
+        // if (formula.get(formula.size()-1) instanceof Conjunction c){
+        //     return SmtFactory.createConjunction(c.queryChild(1).negate(), c.queryChild(2));    
+        // }
+        // rightSide = negate(rightSide);
+        // System.out.println ("rightside negated: " + rightSide);
+        // return addReturnCarry(leftSide, rightSide);
+        // Constraint end = SmtFactory.createImplication(leftSide.get(leftSide.size()-1))
+        // for (int i = bidWidth-1; i >= 0; i--){  
+        //     end = SmtFactory.createDisjunction(SmtFactory.createConjunction(leftSide.get(i), SmtFactory.createNegation(rightSide.get(i))), SmtFactory.createConjunction(SmtFactory.createIff(leftSide.get(i), rightSide.get(i)), ));
+        // }
+        return SmtFactory.createNegation(subtract(leftSide, rightSide));
+        
+
+    }
+
+
+    // public static negate (IValue value){
+
+    // }
+
+    public static ArrayList<Valuation> generateAllValuations(int numVariables) {
+        ArrayList<Valuation> valuations = new ArrayList<>();
+        
+        // Total number of valuations is 2^numVariables
+        int totalValuations = 1 << numVariables; // Same as 2^numVariables
+        
+        // Iterate through all possible valuations
+        for (int i = 0; i < totalValuations; i++) {
+            Valuation val = new Valuation();
+            for (int j = 0; j < numVariables; j++) {
+                // Check if the j-th bit in i is set (1)
+                boolean value = (i & (1 << j)) != 0;
+                val.setBool(j+1, value);
+            }
+            valuations.add(val);
+        }
+        
+        return valuations;
+    }
+
+    public static void test(SmtProblem problem, Constraint formula){
         
 
 
-
-        ArrayList<Valuation> valuations = new ArrayList<>();
-        Valuation val1 = new Valuation();
-        val1.setBool(1, true);
-        Valuation val2 = new Valuation();
-        val2.setBool(1, false);
-        valuations.add(val1);
-        valuations.add(val2);
-        System.out.println ("number of bool vars: " + problem.numberBooleanVariables());
-        ArrayList<Valuation> willAdd = new ArrayList<>();
-        for (int i =2; i <= problem.numberBooleanVariables(); i++){
-            for (Valuation val: valuations){
-                val.setBool(i, false);
-                Valuation val3 = new Valuation();
-                for (int j=1; j <= problem.numberBooleanVariables(); j++){
-                    if (val.queryBoolAssignment(j)) val3.setBool(j, true);
-                }
-                val3.setBool(i, true);
-                willAdd.add(val3);
-            }
-            valuations.addAll(willAdd);
-        }
+        ArrayList<Valuation> valuations = generateAllValuations(problem.numberBooleanVariables());
         //System.out.println (valuations);
-        int value = 0;
-        ArrayList<Constraint> c = convert((IValue)SmtFactory.createValue(value));
-        System.out.println (value +" converted is " + c);
-        Constraint answer = SmtFactory.createTrue();
-        ArrayList<Valuation> trueValuations= new ArrayList<>();
-        if (formula.size() != c.size()) throw new Error ("f has different bitwidth as c");
-        for (int j =0; j < valuations.size(); j++){
-            boolean doesithold = true;
-            for (int i =0; i < formula.size(); i++){
-                //System.out.println ("testing valuation: " + valuations.get(j) + " on " + formula.get(i-1) + " resulting in " +formula.get(i-1).evaluate(valuations.get(j)) +" and cc value: " + cc.queryChild(i));
-                if (c.get(i).evaluate() != formula.get(i).evaluate(valuations.get(j))){
-                    //System.out.println ("removing: " + valuations.get(j));
-                    doesithold = false;
-                    
-                }
+        ArrayList<Valuation> trueValuations = new ArrayList<>();
+        for (Valuation val : valuations){
+            if (formula.evaluate(val)){
+                trueValuations.add(val);
             }
-            if (doesithold) trueValuations.add(valuations.get(j));
-            
         }
-        System.out.println (trueValuations);
+        System.out.println ("holds for: " + trueValuations);
+        //ArrayList<Valuation> valuations = new ArrayList<>();
+        // Valuation val1 = new Valuation();
+        // val1.setBool(1, true);
+        // Valuation val2 = new Valuation();
+        // val2.setBool(1, false);
+        // valuations.add(val1);
+        // valuations.add(val2);
+        // System.out.println ("number of bool vars: " + problem.numberBooleanVariables());
+        // ArrayList<Valuation> willAdd = new ArrayList<>();
+        // for (int i =2; i <= problem.numberBooleanVariables(); i++){
+        //     for (Valuation val: valuations){
+        //         val.setBool(i, false);
+        //         Valuation val3 = new Valuation();
+        //         for (int j=1; j <= problem.numberBooleanVariables(); j++){
+        //             if (val.queryBoolAssignment(j)) val3.setBool(j, true);
+        //         }
+        //         val3.setBool(i, true);
+        //         willAdd.add(val3);
+        //     }
+        //     valuations.addAll(willAdd);
+        // }
+        // System.out.println (valuations);
+        // int value = 0;
+        // ArrayList<Constraint> c = convert((IValue)SmtFactory.createValue(value));
+        // System.out.println (value +" converted is " + c);
+        // Constraint answer = SmtFactory.createTrue();
+        // ArrayList<Valuation> trueValuations= new ArrayList<>();
+        // if (formula.size() != c.size()) throw new Error ("f has different bitwidth as c");
+        // for (int j =0; j < valuations.size(); j++){
+        //     boolean doesithold = true;
+        //     for (int i =0; i < formula.size(); i++){
+        //         //System.out.println ("testing valuation: " + valuations.get(j) + " on " + formula.get(i-1) + " resulting in " +formula.get(i-1).evaluate(valuations.get(j)) +" and cc value: " + cc.queryChild(i));
+        //         if (c.get(i).evaluate() != formula.get(i).evaluate(valuations.get(j))){
+        //             //System.out.println ("removing: " + valuations.get(j));
+        //             doesithold = false;
+                    
+        //         }
+        //     }
+        //     if (doesithold) trueValuations.add(valuations.get(j));
+            
+        // }
+        // System.out.println (trueValuations);
         // for (Valuation val : valuations){
         //     if (formula.evaluate(val)) System.out.println (" holds for " + val);
         //     else System.out.println (" does not hold for " + val);
         // }
+
     }
     // public static void add(IVar x, IValue y){
     //     String value = Integer.toBinaryString(y.queryValue());

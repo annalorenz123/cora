@@ -43,5 +43,16 @@ public final class Conjunction extends Junction {
     for (Constraint c : _children) arr.add(c.negate());
     return new Disjunction(arr);
   }
+
+  public Constraint simplify(){
+    for (int i = 0; i < _children.size(); i++) {
+      if (_children.get(i) instanceof Falsehood ) return SmtFactory.createFalse();
+      if (_children.get(i) instanceof Truth ) {
+        _children.remove(i);
+        if (_children.size()==1) return _children.get(0);
+      }
+    }
+    return this;
+  }
 }
 

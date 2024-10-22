@@ -183,7 +183,7 @@ public class SmtFactory {
   public static Constraint createImplication(Constraint a, Constraint b) {
     if (a == null) throw new NullStorageException("Implication", "left argument");
     if (b == null) throw new NullStorageException("Implication", "right argument");
-    return new Disjunction(new Not(a), b);
+    return new Disjunction(new Not(a).simplify(), b).simplify();
   }
 
   public static Constraint createIff(Constraint a, Constraint b) {
