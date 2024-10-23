@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class BitBlasting{
-    static int bidWidth = 5;
+    static int bidWidth = 4;
     static ArrayList<ArrayList<Constraint>> allVariables = new ArrayList<>();
 
 
@@ -35,8 +35,14 @@ public class BitBlasting{
             System.out.println (c);
             ArrayList<Constraint> leftSide = convert(problem, c.get(0));
             ArrayList<Constraint> rightSide = convert(problem, c.get(1));
-            System.out.println ("left side converted: " + leftSide);
-            System.out.println ("right side converted: " + rightSide);
+            System.out.println ("left side converted: " );
+            for (int a =0; a < leftSide.size(); a++){
+                System.out.println ("s" + a + ": " + leftSide.get(a));
+            }
+            System.out.println ("right side converted: " );
+            for (int a =0; a < rightSide.size(); a++){
+                System.out.println ("s" + a + ": " + rightSide.get(a));
+            }
             Constraint end = greaterOrEqual(leftSide, rightSide);
             System.out.println ("end: " + end);
             args.add(end);
@@ -50,9 +56,23 @@ public class BitBlasting{
             // }
 
         }
-        Constraint endConjunction = SmtFactory.createConjunction(args);
+        Constraint endConjunction = args.get(0);
+        for (int i =1; i < args.size(); i++){
+            endConjunction = SmtFactory.createConjunction(endConjunction, args.get(i));
+        }
+        
         System.out.println ("end conjunction: " + endConjunction);
-        test(problem, endConjunction);
+        ArrayList<Valuation> valuations = test(problem, endConjunction);
+        if (valuations.size()==0) return new SmtSolver.Answer.NO();
+        else {
+
+            Valuation v =  makeValuation (problem, valuations.get(0));
+            InternalSolver is = new InternalSolver();
+            if (is.extraCheck(v, expressions)){
+                return new SmtSolver.Answer.YES(v);
+            }
+            else throw new Error ("bitblasting gave answer that does not hold: " + v);
+        }
         
          
         // for (int i =0; i < c.size(); i++){
@@ -73,11 +93,50 @@ public class BitBlasting{
         //     }
         // }
        
-        return new SmtSolver.Answer.MAYBE("not implemented yet.");
+        //return new SmtSolver.Answer.MAYBE("not implemented yet.");
 
 
 
     }
+
+    public static Valuation makeValuation (SmtProblem problem, Valuation v){
+        Valuation finalVal = new Valuation();
+
+        for (int i = 1; i <= problem.numberIntegerVariables(); i++){
+            int decimal = convertBinToDec (allVariables.get(i-1), v);
+            finalVal.setInt(i, decimal);
+        }
+        return finalVal;
+    }
+
+    public static int convertBinToDec (ArrayList<Constraint> binary, Valuation v){
+        int power = 0;
+        int finalInt = 0;
+        for (int i =0; i < binary.size(); i++){
+            if (!(binary.get(i) instanceof Falsehood) && v.queryBoolAssignment(((BVar)binary.get(i)).queryIndex())){
+                finalInt += Math.pow(2,power);
+            }
+            power++;
+        }
+        return finalInt;
+    }
+
+    public static int convertBinToDec (ArrayList<Constraint> binary){
+        int power = 0;
+        int finalInt = 0;
+        for (int i =0; i < binary.size(); i++){
+            if (! (binary.get(i) instanceof Falsehood) ||  ! (binary.get(i) instanceof Truth) ){
+                throw new Error ("not truth and falsehood");
+            }
+            if (binary.get(i) instanceof Truth){
+                finalInt += Math.pow(2,power);
+            }
+            power++;
+        }
+        return finalInt;
+
+    }
+
 
 
     public static ArrayList<Constraint> convert (SmtProblem problem, IntegerExpression expression){
@@ -236,11 +295,7 @@ public class BitBlasting{
         String value = Integer.toBinaryString(v.queryValue());
         System.out.println (value + " with length " + value.length());
         if (value.length() > bidWidth){
-            if (canBeShortened(value)){
-                System.out.println (value + " can be shortened to " + value.substring(value.length()-bidWidth, value.length()));
-                value = value.substring(value.length()-bidWidth, value.length());
-            }
-            else throw new Error ("Value " + v.queryValue() + " too big for bidwidth.");
+            throw new Error ("Value " + v.queryValue() + " too big for bidwidth.");
         } 
         if (value.length() < bidWidth) {
             value = addZeros(value);
@@ -262,21 +317,6 @@ public class BitBlasting{
             value = "0" + value;
         }
         return value;
-    }
-
-    public static boolean canBeShortened (String binaryNumber){
-        boolean allZeros = true;
-        for (int i = bidWidth; i < binaryNumber.length(); i++){
-            if (binaryNumber.charAt(i) != '0') allZeros = false;
-        }
-        if (allZeros) return true;
-        boolean allOnes = true;
-        for (int i = binaryNumber.length()-bidWidth; i >= 0 ; i--){
-            if (binaryNumber.charAt(i) != '1') {
-                allOnes = false;
-            }
-        }
-        return allOnes;
     }
 
 
@@ -307,34 +347,59 @@ public class BitBlasting{
     //     return endFormula;
 
     public static Constraint xor (Constraint a, Constraint b){
-        return SmtFactory.createConjunction(SmtFactory.createDisjunction(a,b).simplify(), SmtFactory.createNegation(SmtFactory.createConjunction(a,b).simplify()).simplify()).simplify();
+        //System.out.println ("result of xor: " + SmtFactory.createConjunction(SmtFactory.createDisjunction(a,b).simplify(), SmtFactory.createNegation(SmtFactory.createConjunction(a,b).simplify()).simplify()).simplify());
+        //return SmtFactory.createConjunction(SmtFactory.createDisjunction(a,b).simplify(), SmtFactory.createNegation(SmtFactory.createConjunction(a,b).simplify()).simplify()).simplify();
+        return SmtFactory.createConjunction(SmtFactory.createDisjunction(a,b), SmtFactory.createNegation(SmtFactory.createConjunction(a,b)));
+
     }
-    // }
 
-     public static Constraint subtract(ArrayList<Constraint> minuend, ArrayList<Constraint> subtrahend) {
 
+
+    public static ArrayList<Constraint> addFalses (ArrayList<Constraint> adding, int size){
+        System.out.println ("going to make " + adding + " the size " + size);
+        for (int i = adding.size(); i < size; i++){
+            adding.add(SmtFactory.createFalse());
+        }
+        return adding;
+
+    }
+    public static Constraint subtract(ArrayList<Constraint> minuend, ArrayList<Constraint> subtrahend) {
+        System.out.println ("going to subtract "+ minuend + " and " + subtrahend);
         // Ensure both binary numbers are of the same length
+        if (minuend.size()!= subtrahend.size()) {
+            
+            if (minuend.size() < subtrahend.size()){
+                minuend = addFalses(minuend, subtrahend.size());
+            }
+            else subtrahend = addFalses(subtrahend, minuend.size());
+            System.out.println ("not of same size, converted: " + minuend + " and " + subtrahend);
+            //throw new Error (minuend + " and " + subtrahend + " not of same size");
+        }
         int n = minuend.size();
-        ArrayList<Constraint> result = new ArrayList<>(n);
+        System.out.println ("size of " + minuend + " is " + n);
+        ArrayList<Constraint> result = new ArrayList<>();
         Constraint borrow = SmtFactory.createFalse(); // Initial borrow is false (no borrow)
         
         for (int i = 0; i < n; i++) {
             // Get the bits from minuend and subtrahend at position i
             Constraint a = minuend.get(i);  // Bit from the minuend
             Constraint b = subtrahend.get(i); // Bit from the subtrahend
-
+            System.out.println ("a: " + a);
+            System.out.println ("b: " + b);
             // Perform the subtraction at this bit position:
             // result[i] = a XOR b XOR borrow
             Constraint diff = xor(xor(a,b),borrow);
+            System.out.println ("hallo");
             result.add(diff);
-
+            System.out.println ("hello");
             // Calculate the new borrow:
             // borrow = (NOT a AND b) OR (borrow AND (NOT a XOR b))
             Constraint newBorrow = SmtFactory.createDisjunction(SmtFactory.createConjunction(SmtFactory.createNegation(a).simplify(), b).simplify(), SmtFactory.createConjunction(borrow, xor(SmtFactory.createNegation(a),b)).simplify()).simplify();
             // Update the borrow for the next bit position
+            System.out.println ("wow");
             borrow = newBorrow;
         }
-
+        System.out.println ("end borrow: " + borrow);
         return borrow;
     }
 
@@ -352,14 +417,17 @@ public class BitBlasting{
         for (int i =0; i < bidWidth ; i++){
             Constraint c_i = c.get(i);
             Constraint d_i = d.get(i);
-            Constraint c_xor_d= SmtFactory.createConjunction(SmtFactory.createDisjunction(c_i, d_i).simplify(), SmtFactory.createNegation(SmtFactory.createConjunction(c_i, d_i).simplify()).simplify()).simplify();
-            Constraint sum = SmtFactory.createConjunction(SmtFactory.createDisjunction(c_xor_d, carry).simplify(), SmtFactory.createNegation(SmtFactory.createConjunction(c_xor_d, carry).simplify()).simplify()).simplify();
+            Constraint c_xor_d= xor(c_i, d_i);
+            Constraint sum = xor(c_xor_d, carry);
+            //Constraint sum = SmtFactory.createConjunction(SmtFactory.createDisjunction(c_xor_d, carry).simplify(), SmtFactory.createNegation(SmtFactory.createConjunction(c_xor_d, carry).simplify()).simplify()).simplify();
 
             
             constraints.add(sum);
             carry = SmtFactory.createDisjunction(SmtFactory.createConjunction(c_i,d_i).simplify(), SmtFactory.createConjunction(carry, c_xor_d).simplify()).simplify();
             //if (i == bidWidth-1) constraints.add(SmtFactory.createConjunction(sum, SmtFactory.createNegation(carry)));
         }
+        constraints.add(carry);
+        //constraints.set(constraints.size()-1, SmtFactory.createConjunction(constraints.get(constraints.size()-1), carry).simplify());
         //two negative numbers -> negative outcome 
         //two positive numbers -> positive outcome
 
@@ -450,7 +518,7 @@ public class BitBlasting{
         return valuations;
     }
 
-    public static void test(SmtProblem problem, Constraint formula){
+    public static ArrayList<Valuation> test(SmtProblem problem, Constraint formula){
         
 
 
@@ -462,7 +530,10 @@ public class BitBlasting{
                 trueValuations.add(val);
             }
         }
-        System.out.println ("holds for: " + trueValuations);
+        //System.out.println (trueValuations);
+        //for (int i =0; i < 5; i++) System.out.println (trueValuations.get(i));
+        //if (trueValuations.size() > 0 ) System.out.println ("holds for: " + trueValuations.get(0));
+        return trueValuations;
         //ArrayList<Valuation> valuations = new ArrayList<>();
         // Valuation val1 = new Valuation();
         // val1.setBool(1, true);
