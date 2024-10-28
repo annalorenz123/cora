@@ -2,12 +2,12 @@
 package cora.smt;
 
 public final class QValue extends QExpression {
-  private int _numerator;
-  private int _denominator;
+  private long _numerator;
+  private long _denominator;
 
 
   //write simplify function
-  public QValue(int n, int d) {
+  public QValue(long n, long d) {
     if (d == 0) {
       throw new IllegalArgumentException("Denominator cannot be zero.");
     }
@@ -20,7 +20,7 @@ public final class QValue extends QExpression {
     }
   }
 
-  public static int gcd(int a, int b) {
+  public static long gcd(long a, long b) {
     if (b == 0) {
         return a;
     }
@@ -32,15 +32,17 @@ public final class QValue extends QExpression {
     return new QValue (numerator.queryNumerator()*denominator.queryDenominator(), numerator.queryDenominator()*denominator.queryNumerator());
   }
 
-  public int queryNumerator() {
+  public long queryNumerator() {
     return _numerator;
   }
-  public int queryDenominator() {
+  public long queryDenominator() {
     return _denominator;
   }
 
   public QValue simplify() {
     //todo implement
+    this._numerator = _numerator/gcd(this._numerator,this._denominator);
+    this._denominator = _denominator/gcd(this._numerator,this._denominator);
     return this;
   }
 
@@ -50,6 +52,8 @@ public final class QValue extends QExpression {
 
 
   public QValue add(QValue q) {
+    //System.out.println ("adding " + this + " and " +q );
+    //System.out.println ("result is " + (_numerator * q.queryDenominator() + (_denominator* q.queryNumerator()) +"/"+_denominator * q.queryDenominator()));
     return new QValue ((_numerator * q.queryDenominator()) + (_denominator* q.queryNumerator()), _denominator * q.queryDenominator());
   }
 
