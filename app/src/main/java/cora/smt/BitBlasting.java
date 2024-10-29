@@ -6,41 +6,31 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class BitBlasting{
-    static int bidWidth = 10;
+    static int bidWidth = 3;
     static ArrayList<ArrayList<Constraint>> allVariables = new ArrayList<>();
 
 
     public SmtSolver.Answer checkSatisfiability(SmtProblem problem, ArrayList<IntegerExpression> expressions){
-        
+        if (expressions.size()==0) return new SmtSolver.Answer.YES(new Valuation());
         for (int i =0; i < problem.numberIntegerVariables(); i++){
             allVariables.add(new ArrayList<>());
         }
-        if (expressions.size()==0) return new SmtSolver.Answer.YES(new Valuation());
+        
         ArrayList<IntegerExpression> c = new ArrayList<>();
-        //multiple expressions add later
         ArrayList<Constraint> args = new ArrayList<>();
         System.out.println ("number of expressions: " + expressions.size());
         for (int i =0; i < expressions.size(); i++){
             //make switch
-            if (expressions.get(i) instanceof Addition a){
-                c = makeSides(a);
+            switch(expressions.get(i)){
+                case Addition a: c = makeSides(a); break;
+                case CMult cm: c = makeSides(cm); break;
+                case IVar v : c.add(v); c.add(SmtFactory.createValue(0)); break;
+                default: throw new Error("expression of form: " + expressions.get(i) + " not supported.");
             }
-            else if (expressions.get(i) instanceof CMult cm){
-                c = makeSides(cm);
-            }
-            else if (expressions.get(i) instanceof IVar v){
-                c.add(v);
-                c.add(SmtFactory.createValue(0));
-            }
-            // else if (expressions.get(i) instanceof IValue v){
-            //     if (v.queryValue() >= 0) c = SmtFactory.createTrue();
-            //     else c = SmtFactory.createFalse();
-            // }
-            else throw new Error("expression of form: " + expressions.get(i) + " not supported yet.");
             System.out.println (c);
             ArrayList<Constraint> leftSide = convert(problem, c.get(0));
             ArrayList<Constraint> rightSide = convert(problem, c.get(1));
-            System.out.println ("left side converted: " + leftSide);
+            //System.out.println ("left side converted: " + leftSide);
             // for (int a =0; a < leftSide.size(); a++){
             //     System.out.println ("s" + a + ": " + leftSide.get(a));
             // }
@@ -49,6 +39,7 @@ public class BitBlasting{
             //     System.out.println ("s" + a + ": " + rightSide.get(a));
             // }
             Constraint end = greaterOrEqual(leftSide, rightSide);
+            System.out.println ("end arg: " + end);
             //System.out.println ("end: " + end);
             args.add(end);
             // if (expressions.get(i) instanceof IVar v){
@@ -61,6 +52,8 @@ public class BitBlasting{
             // }
 
         }
+        TseitinTransformation tt = new TseitinTransformation();
+        ArrayList<Constraint> subformulas = tt.tseitinTransformation(args);
         Constraint endConjunction = SmtFactory.createConjunction(args);
         // Constraint endConjunction = args.get(0);
         // for (int i =1; i < args.size(); i++){
@@ -288,11 +281,11 @@ public class BitBlasting{
 
     public ArrayList<Constraint> removeFalses (ArrayList<Constraint> formula){
         System.out.println ("before:" + formula);
+        ArrayList<Constraint> newFormula = new ArrayList<>();
         for (int i =0; i < formula.size(); i++){
-            if (formula.get(i) instanceof Falsehood) formula.remove(i); i--;
+            if (!(formula.get(i) instanceof Falsehood)) newFormula.add(formula.get(i));
         }
-        System.out.println ("after:" + formula);
-        return formula;
+        return newFormula;
     }
 
     public ArrayList<Constraint> convert (SmtProblem problem, IVar v){
@@ -435,7 +428,8 @@ public class BitBlasting{
         // Conjunction c1 = (Conjunction) c;
         // Conjunction d1 = (Conjunction) d;
         
-
+        if (isZero(c)) return d;
+        if (isZero(d)) return c;
         Constraint carry = SmtFactory.createFalse();
         ArrayList <Constraint> constraints = new ArrayList<>();
         if (c.size() > d.size()){
@@ -445,6 +439,7 @@ public class BitBlasting{
             c = addFalses(c, d.size());
         }
         System.out.println ("going to add: " + c + " and "+d);
+        
         for (int i =0; i < c.size() ; i++){
             Constraint c_i = c.get(i);
             Constraint d_i = d.get(i);
@@ -466,6 +461,13 @@ public class BitBlasting{
         //return SmtFactory.createConjunction(constraints);
 
         
+    }
+
+    public boolean isZero (ArrayList<Constraint> check){
+        for (Constraint c : check){
+            if (!(c instanceof Falsehood)) return false;
+        }
+        return true;
     }
 
 
