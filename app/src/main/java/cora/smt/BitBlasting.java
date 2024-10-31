@@ -52,8 +52,8 @@ public class BitBlasting{
             // }
 
         }
-        TseitinTransformation tt = new TseitinTransformation();
-        ArrayList<Constraint> subformulas = tt.tseitinTransformation(args);
+        // TseitinTransformation tt = new TseitinTransformation();
+        // ArrayList<Constraint> subformulas = tt.tseitinTransformation(args);
         Constraint endConjunction = SmtFactory.createConjunction(args);
         // Constraint endConjunction = args.get(0);
         // for (int i =1; i < args.size(); i++){

@@ -5,7 +5,7 @@ import java.util.TreeMap;
 import java.util.ArrayList;
 import charlie.exceptions.IndexingException;
 import charlie.util.Pair;
-
+import java.math.BigInteger;
 
 
 
@@ -24,12 +24,14 @@ public final class QAddition extends QExpression {
     _children = new ArrayList<QExpression>();
     addChild(a);
     addChild(b);
+    checkSimplified();
   }
 
   /** Constructors are hidden, since IntegerExpressions should be made through the SmtFactory. */
   public QAddition(List<QExpression> args) {
     _children = new ArrayList<QExpression>();
     for (QExpression arg : args) addChild(arg);
+    checkSimplified();
   }
 
   /** Private constructor when the array does not need to be copied and checked. */
@@ -58,10 +60,31 @@ public final class QAddition extends QExpression {
     return _children.get(index-1);
   }
 
+  /** Helper for the constructor: sets the _simplified variable if we are in simplified form. */
+  private void checkSimplified() {
+    for (int i = 0; i < _children.size(); i++) {
+      QExpression child = _children.get(i);
+      if (!child.isSimplified()) return;
+      if (i == 0) continue;
+      QExpression childmain = switch(child) {
+        case QValue k -> new QValue(BigInteger.valueOf(1),BigInteger.valueOf(1));
+        case QMult m -> m.queryChild();
+        default -> child;
+      };
+      QExpression prevmain = switch(_children.get(i-1)) {
+        case QValue k -> new QValue(BigInteger.valueOf(1),BigInteger.valueOf(1));
+        case QMult m -> m.queryChild();
+        default -> _children.get(i-1);
+      };
+      if (prevmain.compareTo(childmain) >= 0) return;
+    }
+    _simplified = _children.size() >= 2;
+  }
+
 
   /** Returns a simplified representation of the addition */
   public QExpression simplify() {
-    //if (_simplified) return this;
+    if (_simplified) return this;
     // acquire all children in simplified form
     ArrayList<QExpression> todo = new ArrayList<QExpression>();
     for (QExpression c : _children) {
@@ -71,35 +94,35 @@ public final class QAddition extends QExpression {
     }
     // store the children into a treemap so we can count duplicates, but merge the contants directly
     TreeMap<QExpression,QValue> counts = new TreeMap<QExpression,QValue>();
-    QValue constant = new QValue(0,1);
+    QValue constant = new QValue(BigInteger.valueOf(0),BigInteger.valueOf(1));
     for (QExpression c : todo) {
       QExpression main;
       QValue num;
       if (c instanceof QValue k) {constant = constant.add(k); continue; }
       else if (c instanceof QMult cm) { main = cm.queryChild(); num = cm.queryConstant();}
-      else { main = c; num = new QValue(1,1); }
+      else { main = c; num = new QValue(BigInteger.valueOf(1),BigInteger.valueOf(1)); }
       QValue current = counts.get(main);
       if (current == null) counts.put(main, num);
       else counts.put(main, num.add(current));
     }
     // read them out
     ArrayList<QExpression> ret = new ArrayList<QExpression>();
-    if (constant.queryNumerator() != 0){
-      ret.add(constant);
+    if (constant.queryNumerator() != BigInteger.valueOf(0)){
+      ret.add(new QValue(constant.queryNumerator(),constant.queryDenominator()));
     } 
     for (Map.Entry<QExpression,QValue> entry : counts.entrySet()) {
       QValue k = entry.getValue();
       if (k.queryDenominator()==k.queryNumerator()) ret.add(entry.getKey());
-      else if (k.queryNumerator() != 0) ret.add(new QMult(k, entry.getKey()));
+      else if (k.queryNumerator() != BigInteger.valueOf(0)) ret.add(new QMult(k, entry.getKey()));
     }
     // return the result
-    if (ret.size() == 0) return new QValue(0,1);
+    if (ret.size() == 0) return new QValue(BigInteger.valueOf(0),BigInteger.valueOf(1));
     if (ret.size() == 1) return ret.get(0);
     return new QAddition(ret);
   }
 
   public QExpression multiply(QValue constant) {
-    if (constant.queryNumerator() == 0) return new QValue(0,0);
+    if (constant.queryNumerator() == BigInteger.valueOf(0)) return new QValue(BigInteger.valueOf(0),BigInteger.valueOf(0));
     if (constant.queryNumerator()  == constant.queryDenominator()) return this;
     ArrayList<QExpression> cs = new ArrayList<QExpression>();
     for (int i = 0; i < _children.size(); i++) cs.add(_children.get(i).multiply(constant));

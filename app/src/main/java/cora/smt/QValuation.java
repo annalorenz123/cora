@@ -18,6 +18,7 @@ package cora.smt;
 import java.util.TreeSet;
 import java.util.TreeMap;
 import charlie.smt.*;
+import java.math.BigInteger;
 
 /**
  * A valuation is an assignment of booleans to BVars, and integers to IVars.
@@ -42,7 +43,7 @@ public class QValuation {
   /** Returns the valuation for the integer variable with the given index */
   public QValue queryQValueAssignment(int index) {
     if (_QVarValues.containsKey(index)) return _QVarValues.get(index);
-    else return new QValue(4242,1);
+    else return new QValue(BigInteger.valueOf(4242),BigInteger.valueOf(1));
   }
 
   /** Returns the valuation for the given boolean variable */

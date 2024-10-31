@@ -1,6 +1,8 @@
 package cora.smt;
 import charlie.exceptions.SmtEvaluationException;
 
+import java.math.BigInteger;
+
 public final class QVar extends QExpression {
   private int _index;
   private String _name;
@@ -9,12 +11,14 @@ public final class QVar extends QExpression {
   public QVar(int i) {
     _index = i;
     _name = "i" + _index;
+    _simplified = true;
   }
 
   /** The constructors are hidden, since IntegerExpressions should be made through an SmtProblem. */
   QVar(int i, String name) {
     _index = i;
     _name = "[" + name + "]";
+    _simplified = true;
   }
 
   public int queryIndex() {

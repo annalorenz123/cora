@@ -1,80 +1,100 @@
-
 package cora.smt;
+import java.math.BigInteger;
 
 public final class QValue extends QExpression {
-  private long _numerator;
-  private long _denominator;
+  private BigInteger _numerator;
+  private BigInteger _denominator;
 
-
-  //write simplify function
-  public QValue(long n, long d) {
-    if (d == 0) {
+  // Constructor
+  public QValue(BigInteger n, BigInteger d) {
+    if (d.equals(BigInteger.ZERO)) {
       throw new IllegalArgumentException("Denominator cannot be zero.");
     }
-    _numerator = n/gcd(n,d);
-    _denominator = d/gcd(n,d);
-    // Handle negative denominator to keep denominator positive
-    if (_denominator < 0) {
-      _numerator = -_numerator;
-      _denominator = -_denominator;
+    
+    // Simplify numerator and denominator by their GCD
+    BigInteger gcd = n.gcd(d);
+    _numerator = n.divide(gcd);
+    _denominator = d.divide(gcd);
+
+    // Handle negative denominator to keep it positive
+    if (_denominator.compareTo(BigInteger.ZERO) < 0) {
+      _numerator = _numerator.negate();
+      _denominator = _denominator.negate();
     }
   }
 
-  public static long gcd(long a, long b) {
-    if (b == 0) {
-        return a;
-    }
-    return gcd(b, a % b);
+  // Overload constructor for long values
+  public QValue(long n, long d) {
+    this(BigInteger.valueOf(n), BigInteger.valueOf(d));
   }
 
-
-  public QValue simplify (QValue numerator , QValue denominator){
-    return new QValue (numerator.queryNumerator()*denominator.queryDenominator(), numerator.queryDenominator()*denominator.queryNumerator());
-  }
-
-  public long queryNumerator() {
+  // Query methods
+  public BigInteger queryNumerator() {
     return _numerator;
   }
-  public long queryDenominator() {
+  
+  public BigInteger queryDenominator() {
     return _denominator;
   }
 
+  // Simplify method
   public QValue simplify() {
-    //todo implement
-    this._numerator = _numerator/gcd(this._numerator,this._denominator);
-    this._denominator = _denominator/gcd(this._numerator,this._denominator);
+    BigInteger gcd = _numerator.gcd(_denominator);
+    _numerator = _numerator.divide(gcd);
+    _denominator = _denominator.divide(gcd);
     return this;
+  }
+
+  // Adding two QValues
+  public QValue add(QValue q) {
+    //System.out.println("adding " + this + " and " + q);
+    
+    BigInteger numerator = _numerator.multiply(q.queryDenominator())
+                         .add(_denominator.multiply(q.queryNumerator()));
+    BigInteger denominator = _denominator.multiply(q.queryDenominator());
+    
+    QValue result = new QValue(numerator, denominator);
+    //System.out.println("result is " + result);
+    return result;
+  }
+
+  public QValue simplify (QValue numerator , QValue denominator){
+    return new QValue (numerator.queryNumerator().multiply(denominator.queryDenominator()), numerator.queryDenominator().multiply(denominator.queryNumerator()));
+  }
+
+  // Multiply two QValues
+  public QValue multiply(QValue value) {
+    //System.out.println("multiplying " + this + " and " + value);
+    
+    BigInteger numerator = _numerator.multiply(value.queryNumerator());
+    BigInteger denominator = _denominator.multiply(value.queryDenominator());
+    
+    QValue result = new QValue(numerator, denominator);
+    //System.out.println("result is " + result);
+    return result;
+  }
+
+  // Compare two QValues
+  public int compareTo(QExpression other) {
+    if (other instanceof QValue q) {
+      BigInteger leftSide = _numerator.multiply(q.queryDenominator());
+      BigInteger rightSide = _denominator.multiply(q.queryNumerator());
+      
+      return leftSide.compareTo(rightSide); // Returns -1, 0, or 1
+    }
+    return -1;
   }
 
   public QValue evaluate(QValuation val) {
     return this;
   }
 
+  // // Optional: Implement a negate function if needed
+  // public QValue negate() {
+  //   return new QValue(_numerator.negate(), _denominator);
+  // }
 
-  public QValue add(QValue q) {
-    //System.out.println ("adding " + this + " and " +q );
-    //System.out.println ("result is " + (_numerator * q.queryDenominator() + (_denominator* q.queryNumerator()) +"/"+_denominator * q.queryDenominator()));
-    return new QValue ((_numerator * q.queryDenominator()) + (_denominator* q.queryNumerator()), _denominator * q.queryDenominator());
-  }
-
-  public QValue multiply(QValue value) {
-    return new QValue(value.queryNumerator() * _numerator, value.queryDenominator()*_denominator);
-  }
-  public int compareTo(QExpression other) {
-    if (other instanceof QValue q ){
-      long leftSide = (long) this._numerator * q.queryDenominator();
-      long rightSide = (long) this._denominator * q.queryNumerator();
-      if (leftSide < rightSide) {
-          return -1; // this < other
-      } else if (leftSide > rightSide) {
-          return 1;  // this > other
-      }
-      return 0;
-    }
-    return -1;
-  }
-
-
-
-
-} 
+  // public String toString() {
+  //   return _numerator + "/" + _denominator;
+  // }
+}

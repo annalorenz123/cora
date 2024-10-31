@@ -14,7 +14,7 @@
  *************************************************************************************************/
 
 package cora.smt;
-
+import java.math.BigInteger;
 /**
  * IExpPrinters are used in the overall output process of the tool.  This class provides a default
  * implementation, but is meant to be inherited.  You can for instance instantiate the IExpPrinter
@@ -77,7 +77,7 @@ public class QExpPrinter {
    * The default functionality is just to add the value to the string builder.
    */
   protected void printValue(QValue k, StringBuilder builder) {
-    if (k.queryDenominator() == 1){
+    if (k.queryDenominator().equals(BigInteger.valueOf(1))){
         builder.append("" + k.queryNumerator());
     }
     else{
@@ -95,7 +95,7 @@ public class QExpPrinter {
    * neither basic nor a multiplication.
    */
   protected void printQMult(QMult c, StringBuilder builder) {
-    if (c.queryConstant().queryNumerator() == -c.queryConstant().queryDenominator()){
+    if (c.queryConstant().queryNumerator().equals(c.queryConstant().queryDenominator().negate())){
         builder.append("-");    
     }
     else if (c.queryConstant().queryNumerator() != c.queryConstant().queryDenominator()){

@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.Arrays;
+import java.math.BigInteger;
 
 public class InternalSolver implements SmtSolver {
 
@@ -42,9 +43,20 @@ public class InternalSolver implements SmtSolver {
 
     // BitBlasting bb = new BitBlasting();
     // return bb.checkSatisfiability(problem, expressions);
+
     //OR
+
     SimplexMethod simpmet = new SimplexMethod();
     return simpmet.checkSatisfiability(problem, expressions);
+    //-4/3 * [i2] + -4/3 + [i1] + 4/3 * [i2] + 1/3 * [y4] + -1/3 * [y5]
+    // QValue q1 = new QValue(-4,3);
+    // System.out.println (q1.simplify());
+    // QVar q = new QVar(1);
+    // QAddition qad = new QAddition (new QMult(new QValue(-4,3), q), new QValue(-4,3));
+    // QAddition qad1 = new QAddition(new QValue(-3,1), new QValue(3,1));
+    // QValue q = new QValue(-400,4);
+    // System.out.println (qad.simplify());
+    // return new Answer.MAYBE("not implemented yet.");
   }
 
   /**

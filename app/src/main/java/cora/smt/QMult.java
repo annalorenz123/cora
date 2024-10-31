@@ -1,4 +1,5 @@
 package cora.smt;
+import java.math.BigInteger;
 public final class QMult extends QExpression {
   private QValue _constant;
   private QExpression _main;
@@ -7,9 +8,9 @@ public final class QMult extends QExpression {
   public QMult(QValue k, QExpression e) {
     _constant = k;
     _main = e;
-    // if (_main.isSimplified() && !(_main instanceof QValue) &&
-    //     !(_main instanceof QMult) && !(_main instanceof QAddition) &&
-    //     _constant != 0 && _constant != 1) _simplified = true;
+    if (_main.isSimplified() && !(_main instanceof QValue) &&
+        !(_main instanceof QMult) && !(_main instanceof QAddition) &&
+        _constant.queryNumerator() != BigInteger.valueOf(0) && _constant.queryNumerator() != _constant.queryDenominator()) _simplified = true;
   }
 
   public QValue queryConstant() {
@@ -27,14 +28,14 @@ public final class QMult extends QExpression {
 
   public QExpression simplify() {
     //if (_simplified) return this;
-    if (_constant.queryNumerator() == 0) return new QValue(0,1);
+    if (_constant.queryNumerator() == BigInteger.valueOf(0)) return new QValue(BigInteger.valueOf(0),BigInteger.valueOf(1));
     if (_constant.queryNumerator() == _constant.queryDenominator()) return _main.simplify();
     return _main.simplify().multiply(_constant);
   }
 
   public QExpression multiply(QValue constant) {
     QValue newconstant = _constant.multiply(constant);
-    if (newconstant.queryNumerator() == 0) return new QValue(0,1);
+    if (newconstant.queryNumerator() == BigInteger.valueOf(0)) return new QValue(BigInteger.valueOf(0),BigInteger.valueOf(1));
     if (newconstant.queryNumerator() == newconstant.queryDenominator()) return _main;
     if (constant.queryNumerator() == constant.queryDenominator()) return this;
     return new QMult(newconstant, _main);

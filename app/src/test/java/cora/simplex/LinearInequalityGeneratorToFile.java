@@ -3,7 +3,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Random;
 
-public class LinearInequalityGeneratorToFolder {
+public class LinearInequalityGeneratorToFile {
 
     public static void main(String[] args) {
         // Set the ranges for the number of variables and inequalities
@@ -17,7 +17,7 @@ public class LinearInequalityGeneratorToFolder {
         int maxValue = 40;
 
         // Number of files to generate
-        int numFiles = 20;
+        int numFiles = 50;
         String folderName = "linear_inequalities_files";
 
         // Create the folder if it does not exist
@@ -57,8 +57,8 @@ public class LinearInequalityGeneratorToFolder {
 
                     // Determine the inequality sign and add a random right-hand side value
                     String sign = random.nextBoolean() ? ">=" : "<=";
+                    
                     int rhs = random.nextInt(maxValue - minValue + 1) + minValue; // Random integer for the right-hand side between -1000 and 1000
-
                     // Append the sign and rhs to the inequality
                     inequality.append(" ").append(sign).append(" ").append(rhs);
 
