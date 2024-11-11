@@ -49,8 +49,24 @@ public final class Conjunction extends Junction {
       if (_children.get(i) instanceof Falsehood ) return SmtFactory.createFalse();
       if (_children.get(i) instanceof Truth ) {
         _children.remove(i);
+        i--;
         if (_children.size()==1) return _children.get(0);
       }
+      if (i > 0){
+        if (_children.get(i).equals(_children.get(i-1))) {
+          _children.remove(i);
+          i--; // Decrement `i` to adjust for the shift after removal
+          if (_children.size() == 1) {
+            return _children.get(0);
+          }
+
+        }
+        if (_children.get(i) instanceof Not n){
+          if (n.queryChild().equals(_children.get(i-1))) return SmtFactory.createFalse();
+        }
+
+      }
+      
     }
     return this;
   }

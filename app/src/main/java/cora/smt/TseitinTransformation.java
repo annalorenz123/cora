@@ -24,24 +24,24 @@ public class TseitinTransformation{
         System.out.println ("converting: " + formula);
 
         if (inCNF(formula)) return formula;
-        else{
-            if (formula instanceof Disjunction d){
-                formula = distributiveLaw(formula);
-            }
-            else{
-                formula = deMorgan(formula);
-            }
-        }
-        if (inCNF(formula)) {
-            System.out.println ("in cnf: " + formula);
-            return formula;
-        }
-        if (formula instanceof Disjunction d){
-            formula = distributiveLaw(formula);
-        }
-        else{
-            formula = deMorgan(formula);
-        }
+        // else{
+        //     if (formula instanceof Disjunction d){
+        //         formula = distributiveLaw(formula);
+        //     }
+        //     else{
+        //         formula = deMorgan(formula);
+        //     }
+        // }
+        // if (inCNF(formula)) {
+        //     System.out.println ("in cnf: " + formula);
+        //     return formula;
+        // }
+        // if (formula instanceof Disjunction d){
+        //     formula = distributiveLaw(formula);
+        // }
+        // else{
+        //     formula = deMorgan(formula);
+        // }
         System.out.println ("not in cnf: " + formula);
         ArrayList<Constraint> subFormulas = makeSubFormulas(problem, formula);
         System.out.println ("subformulas: " + subFormulas);
@@ -95,6 +95,7 @@ public class TseitinTransformation{
             }
         }
         biImplications.add(full);
+        System.out.println ("added: " + full);
         System.out.println ("end: " + SmtFactory.createConjunction(biImplications));
         return SmtFactory.createConjunction(biImplications);
         //return formula;

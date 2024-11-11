@@ -35,17 +35,17 @@ public class BitBlasting{
                 case IVar v : c.add(v); c.add(SmtFactory.createValue(0)); break;
                 default: throw new Error("expression of form: " + expressions.get(i) + " not supported.");
             }
-            //System.out.println (c);
+            System.out.println (c);
             ArrayList<Constraint> leftSide = convert(problem, c.get(0));
             ArrayList<Constraint> rightSide = convert(problem, c.get(1));
-            //System.out.println ("left side converted: " + leftSide);
-            // for (int a =0; a < leftSide.size(); a++){
-            //     System.out.println ("s" + a + ": " + leftSide.get(a));
-            // }
-            // System.out.println ("right side converted: " );
-            // for (int a =0; a < rightSide.size(); a++){
-            //     System.out.println ("s" + a + ": " + rightSide.get(a));
-            // }
+            System.out.println ("left side converted: " + leftSide);
+            for (int a =0; a < leftSide.size(); a++){
+                System.out.println ("s" + a + ": " + leftSide.get(a));
+            }
+            System.out.println ("right side converted: " );
+            for (int a =0; a < rightSide.size(); a++){
+                System.out.println ("s" + a + ": " + rightSide.get(a));
+            }
             Constraint end = greaterOrEqual(leftSide, rightSide);
             //System.out.println ("end arg: " + end);
             //System.out.println ("end: " + end);
@@ -62,9 +62,10 @@ public class BitBlasting{
         }
         //TseitinTransformation tt = new TseitinTransformation();
         Constraint endConjunction = SmtFactory.createConjunction(args);
+        System.out.println (endConjunction);
         
         endConjunction = TseitinTransformation.tseitinTransformation(SmtFactory.createConjunction(args), problem);
-        System.out.println ("end conjunction num vars: " + problem.numberBooleanVariables());
+        // // System.out.println ("end conjunction num vars: " + problem.numberBooleanVariables());
 
         //CnfToDimacs cnf = new CnfToDimacs();
         try{
@@ -74,7 +75,7 @@ public class BitBlasting{
             System.out.println (e);
         }
         MiniSatCaller.callMiniSat("output.cnf", "output.txt");
-        return readOutput(problem);
+        return readOutput(problem, expressions);
         // ArrayList<Valuation> valuations = test(problem, endConjunction);
         // if (valuations.size()==0) return new SmtSolver.Answer.NO();
         // else {
@@ -115,7 +116,7 @@ public class BitBlasting{
 
     }
 
-    public SmtSolver.Answer readOutput (SmtProblem problem){
+    public SmtSolver.Answer readOutput (SmtProblem problem, ArrayList<IntegerExpression> expressions){
         String filePath = "output.txt"; // Adjust path if needed
         Valuation v = new Valuation();
         try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
@@ -137,7 +138,11 @@ public class BitBlasting{
                     System.out.println (binary);
                     v.setInt(i, convertBinToDec(binary));
                 }
-
+                System.out.println (v);
+                SimplexMethod sm = new SimplexMethod();
+                if (!sm.extraCheck(v, expressions)){
+                    throw new Error ("bitblasting gave answer that does not hold: " + v);
+                }
                 return new SmtSolver.Answer.YES(v);
             }
         } catch (IOException e) {
@@ -321,7 +326,7 @@ public class BitBlasting{
     }
 
     public ArrayList<Constraint> multiply(ArrayList<Constraint> lhs, ArrayList<Constraint> rhs) {
-        //System.out.println ("going to multiply " + lhs + " and " + rhs);
+        System.out.println ("going to multiply " + lhs + " and " + rhs);
 
         ArrayList<Constraint> result = new ArrayList<>();
 
@@ -333,10 +338,11 @@ public class BitBlasting{
         for (int i = 0; i < bidWidth; i++) {
             Constraint left = lhs.get(i);
             if (left.evaluate()){
-                ArrayList<Constraint> shifted = leftShift(rhs, i);
-                //System.out.println ("going to add " + shifted + " AND " + result);
-                result = add(shifted, result);
-                //System.out.println ("result is: " + result);
+                ArrayList<Constraint> shifted = new ArrayList<>(); 
+                shifted = leftShift(rhs, i);
+                System.out.println ("going to add " + shifted + " AND " + result);
+                result = new ArrayList<>(add(shifted, result));
+                System.out.println ("result is: " + result);
             }
             //Constraint partialProduct = lhs.get(i).and(rhs);
             //partialProduct = partialProduct.leftShift(i); // Shift left according to the bit position
@@ -348,7 +354,7 @@ public class BitBlasting{
             //     }
             // }
         }
-        //System.out.println ("final result is: " + result);
+        System.out.println ("final result is: " + result);
         return result; // This represents the product
     }
 

@@ -47,11 +47,24 @@ public final class Disjunction extends Junction {
       if (_children.get(i) instanceof Truth ) return SmtFactory.createTrue();
       if (_children.get(i) instanceof Falsehood ) {
         _children.remove(i);
+        i--;
         if (_children.size()==1) return _children.get(0);
       }
+      if (i > 0){
+        if (_children.get(i).equals(_children.get(i-1))) {
+          _children.remove(i);
+          i--; // Decrement `i` to adjust for the shift after removal
+          if (_children.size() == 1) {
+            return _children.get(0);
+          }
+        }
+        if (_children.get(i) instanceof Not n){
+          if (n.queryChild().equals(_children.get(i-1))) return SmtFactory.createTrue();
+        }
       
+      }
+    
     }
     return this;
   }
 }
-
