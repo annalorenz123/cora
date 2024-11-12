@@ -18,7 +18,7 @@ public class SimplexMethod {
   ArrayList<QVar> basis = new ArrayList<>();
 
 
-  public SmtSolver.Answer checkSatisfiability(SmtProblem problem, ArrayList<IntegerExpression> expressions){
+  public SmtSolver.Answer checkSatisfiability(SmtProblem problem, ArrayList<IntegerExpression> expressions, boolean negative){
     if (expressions.size()==0) return new SmtSolver.Answer.YES(new Valuation());
     System.out.println("expressions: " +expressions);
 
@@ -45,12 +45,21 @@ public class SimplexMethod {
       it = problems.iterator();
       final ArrayList<QExpression> originalProblem = new ArrayList<>(it.next());
       ArrayList<QValue> solution = getSolution(problem.numberIntegerVariables(), currentProblem);
-      SmtSolver.Answer answer = checkSolution(solution, problem.numberIntegerVariables(), expressions);
+      SmtSolver.Answer answer = checkSolution(solution, problem.numberIntegerVariables(), expressions, negative);
       problems.remove(originalProblem);
       
-      if (answer instanceof SmtSolver.Answer.YES) return answer;
+      if (answer instanceof SmtSolver.Answer.YES) {
+        return answer;
+      }
       if (answer instanceof SmtSolver.Answer.NO){
-        if (problems.size()==0) return answer;
+        if (problems.size()==0){
+          if (!negative){
+            ArrayList<IntegerExpression> newexpressions = convertToNegative(problem, expressions);
+            System.out.println ("new expressions: " + newexpressions);
+            return checkSatisfiability(problem, newexpressions, true);
+          }
+          return answer;
+        }
         else System.out.println ("removed first problem but we have more options");
       }
       if (answer instanceof SmtSolver.Answer.MAYBE){
@@ -80,6 +89,47 @@ public class SimplexMethod {
     }
     throw new Error("should have returned yes or no answer.");
     //return new SmtSolver.Answer.MAYBE("not implemented yet.");
+  }
+
+  public ArrayList<IntegerExpression> convertToNegative (SmtProblem problem, ArrayList<IntegerExpression> expressions){
+    final int numVariables = problem.numberIntegerVariables();
+    for (int i =1; i <= numVariables; i++){
+      IntegerExpression newexpr = SmtFactory.createAddition(problem.createIntegerVariable(), SmtFactory.createMultiplication(-1, problem.createIntegerVariable()));
+      for (int j=0; j < expressions.size(); j++){
+        expressions.set(j, replace(expressions.get(j), i, newexpr));
+      }
+
+    }
+    return expressions;
+  } 
+
+  public IntegerExpression replace (IntegerExpression expr, int varIndex, IntegerExpression newExpr){
+    //System.out.println ("in replace for " + expr);
+    //replace oldVar in expr for newExpr
+    switch (expr) {
+      case IVar x: 
+        if (x.queryIndex() == varIndex){
+          return newExpr;
+        } else {
+          return x;
+        }
+      case IValue v: return v;
+      case CMult cm: return SmtFactory.createMultiplication(cm.queryConstant(), replace(cm.queryChild(), varIndex, newExpr)).simplify();
+      case Addition a:
+        ArrayList <IntegerExpression> newChildren = new ArrayList<>();
+        for (int i =1; i <= a.numChildren(); i++){
+          newChildren.add(replace(a.queryChild(i), varIndex, newExpr).simplify());
+        }
+        //System.out.println ("final result is: " + new QAddition(newChildren).simplify());
+        return SmtFactory.createAddition(newChildren).simplify();
+
+        //System.out.println ("replacing in " + a.queryChild(1) + " and in " + new QAddition(a, a.queryChild(1).negate().simplify()));
+        //System.out.println ("result 1: " + replace(a.queryChild(1), oldVar, newExpr));
+        //System.out.println ("result 2: " + replace(a.queryChild(2), oldVar, newExpr).simplify());
+        //return new QAddition (replace(a.queryChild(1), oldVar, newExpr), replace(new QAddition(a, a.queryChild(1).negate().simplify()).simplify(), oldVar, newExpr)).simplify();
+      default:
+        throw new Error("Expression of the form " + expr.toString() + " not supported!");
+    }
   }
 
   public ArrayList<ArrayList<QExpression>> removeDuplicates (ArrayList<ArrayList<QExpression>> problems){
@@ -174,7 +224,7 @@ public class SimplexMethod {
   }
 
 
-  public SmtSolver.Answer checkSolution (ArrayList<QValue> solution, int numberIntegerVariables, ArrayList<IntegerExpression> expressions){
+  public SmtSolver.Answer checkSolution (ArrayList<QValue> solution, int numberIntegerVariables, ArrayList<IntegerExpression> expressions, boolean negative){
     System.out.println ("checking solution: " + solution);
     System.out.println (basis);
     if (zLargerThanZero(solution)){
@@ -187,13 +237,24 @@ public class SimplexMethod {
 
       
     }
-    Valuation val = makeValuation(numberIntegerVariables, solution); 
+    Valuation val = makeValuation(numberIntegerVariables, solution, negative); 
     if (extraCheck(val, expressions)){
+      if (negative) return adjustedValuation(numberIntegerVariables, val);
       System.out.println ("valuation: " + val);
       return new SmtSolver.Answer.YES(val);
     }
     System.out.println ("SOMETHING WENT WRONG, SIMPLEX RETURNED SOLUTION THAT DOES NOT HOLD");
     return new SmtSolver.Answer.MAYBE("something went wrong in simplex method.");
+  }
+
+  public SmtSolver.Answer adjustedValuation(int numberIntegerVariables, Valuation val){
+    int numberOriginalVariables = numberIntegerVariables/3;
+    Valuation newVal = new Valuation();
+    newVal.setInt(0,0);
+    for (int i =1; i <= numberOriginalVariables; i++){
+      newVal.setInt(i, val.queryIntAssignment(i+numberOriginalVariables+i-1)-val.queryIntAssignment(i+numberOriginalVariables+i));
+    }
+    return new SmtSolver.Answer.YES(newVal);
   }
 
   public ArrayList<ArrayList<QExpression>> getNewProblems (ArrayList<QExpression> Qexpressions, ArrayList<QValue> solution){
@@ -240,8 +301,10 @@ public class SimplexMethod {
   }
 
   public boolean extraCheck (Valuation val, ArrayList<IntegerExpression> expressions){
+    System.out.println ("checking: "+ val + " for " + expressions);
     for (IntegerExpression expr : expressions){
       if (expr.evaluate(val) < 0){
+
         return false; 
       }
     }
@@ -299,7 +362,7 @@ public class SimplexMethod {
   }
 
 
-  public Valuation makeValuation (int numberIntegerVariables, ArrayList<QValue> constants){
+  public Valuation makeValuation (int numberIntegerVariables, ArrayList<QValue> constants, boolean negative){
     Valuation val = new Valuation();
     //first we set all variables to zero
     for (int i =0; i <= numberIntegerVariables; i++){
@@ -343,7 +406,7 @@ public class SimplexMethod {
   public ArrayList<QExpression> simplexMethod (int numberIntegerVariables, ArrayList<QExpression> Qexpressions, QVar slackVariable){
     //System.out.println("final expr: " +Qexpressions);
     int iterations = 0;
-    while (!basicSolution(Qexpressions) && (iterations == 0 || equalsMinusZ(Qexpressions.get(0)))){
+    if (!basicSolution(Qexpressions)){
       iterations++;
       System.out.println("there is no basic solution");
       System.out.println (Qexpressions);
@@ -376,18 +439,8 @@ public class SimplexMethod {
         }
         else throw new Error ("WRONG STEP");
       }
-      //???
-      // ArrayList<QValue> solution = collectSolution(Qexpressions);
-      // System.out.println ("values of basis variables: " + solution);
-      // if (zLargerThanZero(solution)) return Qexpressions;
     }
     return Qexpressions;
-    // if (basicSolution(Qexpressions)) return Qexpressions;
-    // else {
-    //   basis.clear();
-    //   Qexpressions = addSlackVariables(slackVariable, numberIntegerVariables, Qexpressions);
-    //   return simplexMethod(numberIntegerVariables, Qexpressions, slackVariable);
-    // }
   }
 
   public ArrayList<QExpression> convertToQExpressions (ArrayList<IntegerExpression> expressions){
@@ -431,39 +484,6 @@ public class SimplexMethod {
     return newExpressions;
   }
 
-  // public ArrayList<QExpression> findMinBoundAlternative (ArrayList<QExpression> expressions, QVar swap){
-  //   System.out.println("in findminboundlalternative");
-  //   ArrayList<QExpression> newExpressions = getSwapAndConstant(expressions, swap);
-  //   ArrayList<QExpression> options = new ArrayList<>();
-  //   for (int i = 0; i < newExpressions.size(); i++){
-  //     //System.out.println ("checking for " + newExpressions.get(i));
-  //     if (getCount(swap, newExpressions.get(i)).queryNumerator() != 0){
-  //       ArrayList<QValue> constants = new ArrayList<>();
-  //       collectConstants(constants, newExpressions.get(i));
-  //       if (constants.size()==0) constants.add(new QValue(0,1));
-  //       QExpression whenZero = divide (constants.get(0).multiply(new QValue(-1,1)), getCount(swap, newExpressions.get(i)));
-  //       QValuation qval = new QValuation();
-  //       qval.setQValue(swap.queryIndex(), (QValue) whenZero);
-  //       if (newExpressions.get(i).evaluate(qval).queryNumerator() != 0) System.out.println(newExpressions.get(i) + " is not zero for " + qval);        boolean biggerOrEqualToZero = true;
-  //       //System.out.println (newExpressions);
-  //       for (int j =0; j < newExpressions.size(); j++){
-  //         //System.out.println (newExpressions.get(j));
-  //         if (newExpressions.get(j).evaluate(qval).compareTo(new QValue(0,1)) < 0){
-  //           //System.out.println ("at index " + j + " " + newExpressions.get(j) + " is smaller than zero for " + qval);
-  //           biggerOrEqualToZero = false;
-  //         }
-  //       }
-        
-  //       if (biggerOrEqualToZero && (options.size()==0 || whenZero.compareTo(options.get(0)) > 0)){
-  //         System.out.println (expressions.get(i+1) + " is an option");
-  //         options.add(expressions.get(i+1));
-  //       }
-  //     }
-  //   }
-  //   System.out.println ("options from findminboundalternative " + options);
-  //   return options;
-  // }
-
   public boolean unbounded (ArrayList<QExpression> expressions, QVar swap){
     int index = 1;
     System.out.println ("in unbounded");
@@ -480,11 +500,6 @@ public class SimplexMethod {
       constants.clear();
       index++;
       if (index >= expressions.size()){
-        //ArrayList<QExpression> options = findMinBoundAlternative(expressions, swap);
-        //if (options.isEmpty()) return findMinBound(expressions, findAnotherPositiveFactor(expressions.get(0), swap));
-        //else return options.get(0);
-        //return findMinBound(expressions, findAnotherPositiveFactor(expressions.get(0), swap));
-        //return expressions.get(0);  
         System.out.println ("UNBOUNDED");
         return true;
 
@@ -499,7 +514,7 @@ public class SimplexMethod {
   }
 
 
-  public QExpression findMinBound (ArrayList<QExpression> expressions, QVar swap){
+  public static QExpression findMinBound (ArrayList<QExpression> expressions, QVar swap){
     int index = 1;
     System.out.println ("in findminbound");
     QValue count = getCount(swap, expressions.get(index));
@@ -561,7 +576,7 @@ public class SimplexMethod {
     return expressions.get(index);
   }
 
-  public boolean positiveFactor (QExpression objFunc){
+  public static boolean positiveFactor (QExpression objFunc){
     switch (objFunc) {
       case QVar x: return true;
       case QValue v: return false;
@@ -580,22 +595,6 @@ public class SimplexMethod {
     }
   }
 
-
-  // public QVar findAnotherPositiveFactor (QExpression expression, QVar ignore) {
-  //   switch (expression){
-  //     case QVar x: if (x.queryIndex() != ignore.queryIndex()) return x; else throw new Error("There is no other positive factor in " + expression);
-  //     case QMult cm: 
-  //       if (cm.queryConstant().queryNumerator().compareTo(BigInteger.valueOf(0)) > 0) {
-  //         return findAnotherPositiveFactor(cm.queryChild(), ignore);
-  //       }
-  //       else throw new Error("There is no other positive factor in " + expression);
-  //     case QAddition a: 
-  //       if (!variablePresent(a.queryChild(1), ignore) && positiveFactor(a.queryChild(1))) return findPositiveFactor(a.queryChild(1));
-  //       return findAnotherPositiveFactor(new QAddition(a, a.queryChild(1).negate()).simplify(), ignore);
-  //     default: throw new Error("There is no positive factor in " + expression);
-  //   }
-  // }
-
   public QVar findPositiveFactor (QExpression expression) {
     switch (expression){
       case QVar x: return x;
@@ -613,7 +612,7 @@ public class SimplexMethod {
     }
   }
 
-  public QExpression exprWithLowestConstant (ArrayList<QExpression> expressions, QVar slackVariable){
+  public static QExpression exprWithLowestConstant (ArrayList<QExpression> expressions, QVar slackVariable){
     //you can assume there exists an expression in expressions with a constant < 0, because we do not have a basic solution
     ArrayList<QValue> list = new ArrayList<>();
     QValue lowestConstant = new QValue (0,1);
@@ -697,7 +696,7 @@ public class SimplexMethod {
   }
 
 
-  public QExpression divide (QExpression expr, QValue count){
+  public static QExpression divide (QExpression expr, QValue count){
     if (count.queryNumerator().equals(BigInteger.valueOf(0))){
       throw new IllegalArgumentException("We cannot divide by zero.");
     }
@@ -720,7 +719,7 @@ public class SimplexMethod {
 
   }
 
-  public QAddition addTerms(QExpression expr1, QExpression expr2) {
+  public static QAddition addTerms(QExpression expr1, QExpression expr2) {
     return new QAddition (expr1, expr2);
   }
 
@@ -816,7 +815,7 @@ public class SimplexMethod {
     }
   }
 
-  QValue getCount(QVar x, QExpression expr) {
+  public static QValue getCount(QVar x, QExpression expr) {
     switch(expr) {
       case QVar y: if (x.queryIndex()==y.queryIndex()) return new QValue(BigInteger.valueOf(1),BigInteger.valueOf(1)); else return new QValue(BigInteger.valueOf(0),BigInteger.valueOf(1));
       case QValue v: return new QValue(BigInteger.valueOf(0),BigInteger.valueOf(1));
@@ -835,7 +834,7 @@ public class SimplexMethod {
     }
   }
 
-  public void collectConstants(ArrayList<QValue> list, QExpression expr){
+  public static void collectConstants(ArrayList<QValue> list, QExpression expr){
     switch (expr) {
       case QVar x: return;
       case QValue v: list.add(v);return;

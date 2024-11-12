@@ -39,6 +39,12 @@ public class SmtFactory {
     return new Addition(arg1, arg2);
   }
 
+  public static IntegerExpression createAddition(List<IntegerExpression> args) {
+    if (args.size() < 2) throw new NullStorageException("Addition", "right argument");
+    return new Addition(args);
+  }
+
+
   public static IntegerExpression createMultiplication(int num, IntegerExpression arg) {
     if (arg == null) throw new NullStorageException("Multiplication", "non-constant argument");
     return new Multiplication(new IValue(num), arg);

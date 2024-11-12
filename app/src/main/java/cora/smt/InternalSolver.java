@@ -47,7 +47,7 @@ public class InternalSolver implements SmtSolver {
     //OR
 
     SimplexMethod simpmet = new SimplexMethod();
-    return simpmet.checkSatisfiability(problem, expressions);
+    return simpmet.checkSatisfiability(problem, expressions, false);
     //-4/3 * [i2] + -4/3 + [i1] + 4/3 * [i2] + 1/3 * [y4] + -1/3 * [y5]
     // QValue q1 = new QValue(-4,3);
     // System.out.println (q1.simplify());
