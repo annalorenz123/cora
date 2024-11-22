@@ -25,6 +25,10 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.Arrays;
 import java.math.BigInteger;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 
 public class InternalSolver implements SmtSolver {
 
@@ -35,19 +39,42 @@ public class InternalSolver implements SmtSolver {
    * Figure out if we should return YES(Valuation val), NO(), or MAYBE(String reason).
    */
   public SmtSolver.Answer checkSatisfiability(SmtProblem problem){
+    long startTime = System.nanoTime();
     Constraint constraint = problem.queryCombinedConstraint();
     ArrayList<Constraint> children = getConstraints(constraint);
     System.out.println (children);
     ArrayList<IntegerExpression> expressions = getExpressions(children);
     System.out.println("expressions: " +expressions);
+  
+    BitBlasting bb = new BitBlasting();
+    SmtSolver.Answer answer = bb.checkSatisfiability(problem, expressions, false);
+    // if (answer instanceof SmtSolver.Answer.NO){
+    //   throw new Error ("limited bitblasting gave no as answer");
+    //   // BitBlasting bb2 = new BitBlasting();
+    //   // answer = bb2.checkSatisfiability(problem, expressions, false);
+    // }
+    // SimplexMethod simpmet = new SimplexMethod();
+    // SmtSolver.Answer answer = simpmet.checkSatisfiability(problem, expressions, false);
 
-    // BitBlasting bb = new BitBlasting();
-    // return bb.checkSatisfiability(problem, expressions);
+    long endTime = System.nanoTime();
+    long duration = endTime - startTime; // Time in nanoseconds
+    double executionTime = duration / 1_000_000.0;
 
-    //OR
+    File file = new File("executionTimesBitBlasting.txt");
+    try (BufferedWriter writer = new BufferedWriter(new FileWriter(file, true))) {
+        // Append the line and a newline character
+        if (answer instanceof SmtSolver.Answer.NO){
+          writer.write(Double.toString(executionTime) + " no ");
+        }
+        else writer.write(Double.toString(executionTime));
+        writer.newLine();
+        //System.out.println("Line added successfully to: " + filePath);
+    } catch (IOException e) {
+        System.err.println("An error occurred while writing to the file: " + e.getMessage());
+    }
 
-    SimplexMethod simpmet = new SimplexMethod();
-    return simpmet.checkSatisfiability(problem, expressions, false);
+    return answer;
+    
     //-4/3 * [i2] + -4/3 + [i1] + 4/3 * [i2] + 1/3 * [y4] + -1/3 * [y5]
     // QValue q1 = new QValue(-4,3);
     // System.out.println (q1.simplify());

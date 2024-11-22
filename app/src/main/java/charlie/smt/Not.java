@@ -21,6 +21,7 @@ public final class Not extends Constraint {
   /** The constructor is hidden, since Constraints should be made through the SmtFactory. */
   Not(Constraint e) {
     _negated = e;
+    _negated.simplify();
   }
 
   public Constraint queryChild() {

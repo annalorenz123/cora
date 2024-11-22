@@ -35,10 +35,10 @@ public class SimplexMethod {
 
       System.out.println ("problems: ");
       Iterator<ArrayList<QExpression>> it = problems.iterator();
-      // while (it.hasNext()){
-      //   System.out.println (it.next());
-      // }
-      //it = problems.iterator();
+      while (it.hasNext()){
+        System.out.println (it.next());
+      }
+      it = problems.iterator();
       final ArrayList<QExpression> currentProblem = new ArrayList<>(it.next());
       
       System.out.println ("CURRENT PROBLEM: " + currentProblem);
@@ -53,11 +53,11 @@ public class SimplexMethod {
       }
       if (answer instanceof SmtSolver.Answer.NO){
         if (problems.size()==0){
-          if (!negative){
-            ArrayList<IntegerExpression> newexpressions = convertToNegative(problem, expressions);
-            System.out.println ("new expressions: " + newexpressions);
-            return checkSatisfiability(problem, newexpressions, true);
-          }
+          // if (!negative){
+          //   ArrayList<IntegerExpression> newexpressions = convertToNegative(problem, expressions);
+          //   System.out.println ("TRYING NEGATIVE: " + newexpressions);
+          //   return checkSatisfiability(problem, newexpressions, true);
+          // }
           return answer;
         }
         else System.out.println ("removed first problem but we have more options");
@@ -80,9 +80,11 @@ public class SimplexMethod {
           firstTime = false;
         }
         else {
+          ArrayList<ArrayList<QExpression>> adjustedProblems = adjustProblems(convertToQExpressions(expressions),originalProblem);
+          if (adjustedProblems.isEmpty()) adjustedProblems = getNewProblems(originalProblem, solution);
           //answer = tryExactValue(convertToQExpressions(expressions),currentProblem);
-          problems.addAll(adjustProblems(convertToQExpressions(expressions),originalProblem));
-          problems.addAll(getNewProblems(convertToQExpressions(expressions), solution)); 
+          problems.addAll(adjustedProblems);
+          //problems.addAll(getNewProblems(convertToQExpressions(expressions), solution)); 
           problems = new HashSet<>(removeDuplicates(new ArrayList<>(problems)));
         }
       }
@@ -160,7 +162,9 @@ public class SimplexMethod {
   public ArrayList<ArrayList<QExpression>> adjustProblems (ArrayList<QExpression> Qexpressions, ArrayList<QExpression> currentProblem){
     //System.out.println ("current problem: " + currentProblem);
     ArrayList<ArrayList<QExpression>> adjustedProblems = new ArrayList<>();
-
+    if (currentProblem.get(currentProblem.size()-1).equals(currentProblem.get(currentProblem.size()-2).negate())){
+      return adjustedProblems; 
+    }
     currentProblem.add(currentProblem.get(currentProblem.size()-1).negate());
     adjustedProblems.add(new ArrayList<>(currentProblem));
     
@@ -264,7 +268,7 @@ public class SimplexMethod {
     }
     QValue fraction = solution.get(index);
     double fractionDouble = fraction.queryNumerator().divide(fraction.queryDenominator()).doubleValue();
-    int roundedUp = (int) Math.ceil(fractionDouble);
+    int roundedUp = (int) Math.ceil(fractionDouble)+1;
     int roundedDown = (int) Math.floor(fractionDouble);
     //System.out.println (fraction + " rounded up is " + roundedUp);
     //System.out.println (fraction + " rounded down is " + roundedDown);
@@ -301,7 +305,7 @@ public class SimplexMethod {
   }
 
   public boolean extraCheck (Valuation val, ArrayList<IntegerExpression> expressions){
-    System.out.println ("checking: "+ val + " for " + expressions);
+    //System.out.println ("checking: "+ val + " for " + expressions);
     for (IntegerExpression expr : expressions){
       if (expr.evaluate(val) < 0){
 
@@ -312,8 +316,8 @@ public class SimplexMethod {
   }
 
   public ArrayList<QValue> collectSolution(ArrayList<QExpression> Qexpressions){
-    System.out.println ("qex: " + Qexpressions);
-    System.out.println ("basis: " + basis);
+    //System.out.println ("qex: " + Qexpressions);
+    //System.out.println ("basis: " + basis);
     if (basis.size() != Qexpressions.size()-1) throw new Error ("basis and number of expr not the same length");
     ArrayList<QValue> constantsFinal = new ArrayList<>();
     for (int i =1; i < Qexpressions.size(); i++){
@@ -408,32 +412,32 @@ public class SimplexMethod {
     int iterations = 0;
     if (!basicSolution(Qexpressions)){
       iterations++;
-      System.out.println("there is no basic solution");
-      System.out.println (Qexpressions);
-      System.out.println (basis);
+      //System.out.println("there is no basic solution");
+      //System.out.println (Qexpressions);
+      //System.out.println (basis);
       Qexpressions = pivot (slackVariable, exprWithLowestConstantAlternative(Qexpressions, slackVariable), Qexpressions);
       Qexpressions = removingZeroExpressions(Qexpressions);
-      System.out.println("new expr: " + Qexpressions);
+      //System.out.println("new expr: " + Qexpressions);
       
       while (positiveFactor(Qexpressions.get(0)) ){
         if (basicSolution(Qexpressions)){
-          System.out.println("positive factor present");
+          //System.out.println("positive factor present");
           QVar swap = findPositiveFactor(Qexpressions.get(0));
-          System.out.println("we found a variable with positive factor: " + swap);
+          //System.out.println("we found a variable with positive factor: " + swap);
           if (unbounded(Qexpressions, swap)){
             return Qexpressions;
           }
           QExpression newExpr = findMinBound(Qexpressions, swap);
           //there is no min bound:
           if (newExpr == Qexpressions.get(0)) return Qexpressions;
-          System.out.println ("expr with min bound: "+newExpr);
+          //System.out.println ("expr with min bound: "+newExpr);
           Qexpressions = pivot(swap, newExpr, Qexpressions);
           Qexpressions = removingZeroExpressions(Qexpressions);
 
           ArrayList<QValue> solution = collectSolution(Qexpressions);
-          System.out.println ("basis: " + basis);
-          System.out.println ("values of basis variables: " + solution);
-          System.out.println("removed zero expressions: " + Qexpressions);
+          //System.out.println ("basis: " + basis);
+          //System.out.println ("values of basis variables: " + solution);
+          //System.out.println("removed zero expressions: " + Qexpressions);
           if (basis.size() != Qexpressions.size()-1) throw new Error ("basis and expr not of same length");
 
         }
@@ -486,7 +490,7 @@ public class SimplexMethod {
 
   public boolean unbounded (ArrayList<QExpression> expressions, QVar swap){
     int index = 1;
-    System.out.println ("in unbounded");
+    //System.out.println ("in unbounded");
     QValue count = getCount(swap, expressions.get(index));
     //System.out.println ("in findminbound");
     ArrayList<QValue> constants = new ArrayList<>();
@@ -516,7 +520,7 @@ public class SimplexMethod {
 
   public static QExpression findMinBound (ArrayList<QExpression> expressions, QVar swap){
     int index = 1;
-    System.out.println ("in findminbound");
+    //System.out.println ("in findminbound");
     QValue count = getCount(swap, expressions.get(index));
     //System.out.println ("in findminbound");
     ArrayList<QValue> constants = new ArrayList<>();
@@ -672,9 +676,9 @@ public class SimplexMethod {
     //System.out.println("we are swapping " + swap + " with " + newExpr.toString());
     //System.out.println ("expressions: " + expressions);
     for (int i =0; i < expressions.size(); i++){
-      System.out.println("we are swapping " + swap + " with " + newExpr.toString() + " in " + expressions.get(i));
+      //System.out.println("we are swapping " + swap + " with " + newExpr + " in " + expressions.get(i));
       QExpression newExpression = replace (expressions.get(i), swap, newExpr).simplify();
-      System.out.println ("result is " + newExpression);
+      //System.out.println ("result is " + newExpression);
       if (newExpression instanceof QValue q && i != 0){
         //System.out.println ("found qvalue in expressions: " + q + "removing basis value: " + basis.get(i-1));
         System.out.println ("removing basis value: " + (i-1) + " from basis " + basis);
@@ -688,8 +692,8 @@ public class SimplexMethod {
     newExpr = addTerms(newExpr, new QMult(new QValue(BigInteger.valueOf(-1),BigInteger.valueOf(1)), swap)).simplify();
     expressions.add(1, newExpr);
     basis.add(0, swap);
-    System.out.println("basis at the end: " + basis);
-    System.out.println (expressions);
+    //System.out.println("basis at the end: " + basis);
+    //System.out.println (expressions);
     //if (basis.size() != expressions.size()-1) throw new Error ("basis and expr not of same length");
     return expressions;
 

@@ -12,7 +12,7 @@ import java.io.IOException;
 import java.io.BufferedReader;
 import java.io.FileReader;
 
-public class BitBlasting{
+public class BitBlastingFaster{
     static int bidWidth = 5;
     ArrayList<Constraint> allCarrys = new ArrayList<>();
     static ArrayList<ArrayList<Constraint>> allVariables = new ArrayList<>();
@@ -39,11 +39,11 @@ public class BitBlasting{
             System.out.println (c);
             ArrayList<Constraint> leftSide = convert(problem, c.get(0));
             ArrayList<Constraint> rightSide = convert(problem, c.get(1));
-            System.out.println ("left side converted: " + leftSide);
+            //System.out.println ("left side converted: " + leftSide);
             // for (int a =0; a < leftSide.size(); a++){
             //     System.out.println ("s" + a + ": " + leftSide.get(a));
             // }
-            System.out.println ("right side: " +rightSide);
+            //System.out.println ("right side: " +rightSide);
             // for (int a =0; a < rightSide.size(); a++){
             //     System.out.println ("s" + a + ": " + rightSide.get(a));
             // }
@@ -67,18 +67,17 @@ public class BitBlasting{
             // }
 
         }
-        //TseitinTransformation tt = new TseitinTransformation();
-        // for (Constraint cons : allCarrys){
-        //     args.add(SmtFactory.createNegation(cons).simplify());
-        // }
+        for (Constraint cons : allCarrys){
+            args.add(SmtFactory.createNegation(cons).simplify());
+        }
         Constraint endConjunction = SmtFactory.createConjunction(args).simplify();
         //System.out.println (endConjunction);
         //System.out.println (endConjunction.toString().length());
-        endConjunction = TseitinTransformation.tseitinTransformation(endConjunction, problem);
-        // endConjunction = AdjustedTTransformation.tseitinTransformation(endConjunction, problem);
-        //endConjunction = ToCNF.toCNF(problem,endConjunction);
-        // System.out.println ("end conjunction num vars: " + problem.numberBooleanVariables());
-        // //System.out.println (endConjunction);
+        endConjunction = AdjustedTTransformation.tseitinTransformation(endConjunction, problem);
+        //endConjunction = TseitinTransformation.tseitinTransformation(endConjunction, problem);
+        //endConjunction = ToCNF.toCNF(problem, endConjunction);
+        System.out.println ("end conjunction num vars: " + problem.numberBooleanVariables());
+        //System.out.println (endConjunction);
         //return new SmtSolver.Answer.MAYBE("not implemented yet.");
         // CnfToDimacs cnf = new CnfToDimacs();
         
@@ -384,8 +383,8 @@ public class BitBlasting{
             }
         }
         //System.out.println ("result of addition: " + con);
-        return con;
-        //return new ArrayList<>(con.subList(0, bidWidth));
+        //return con;
+        return new ArrayList<>(con.subList(0, bidWidth));
 
     }
 
@@ -407,7 +406,7 @@ public class BitBlasting{
         else if (d.size() > c.size()){
             c = addFalses(c, d.size());
         }
-        System.out.println ("going to add: " + c + " and "+d);
+        //System.out.println ("going to add: " + c + " and "+d);
         
         for (int i =0; i < c.size() ; i++){
             Constraint c_i = c.get(i);
@@ -422,24 +421,24 @@ public class BitBlasting{
             //carry = SmtFactory.createDisjunction(SmtFactory.createConjunction(c_i,d_i).simplify(), SmtFactory.createConjunction(carry, c_xor_d).simplify()).simplify();
 
             //if (i == bidWidth-1) constraints.add(SmtFactory.createConjunction(sum, SmtFactory.createNegation(carry)));
-            // if (i >= bidWidth) {
-            //     //System.out.println (i+" geq than " + bidWidth);
-            //     allCarrys.add(carry);  
-            //     allCarrys.add(sum);  
-            //     System.out.println ("added: not" + allCarrys.get(allCarrys.size()-2) + " and not" + allCarrys.get(allCarrys.size()-1));
-            // }    
+            if (i >= bidWidth) {
+                //System.out.println (i+" geq than " + bidWidth);
+                allCarrys.add(carry);  
+                allCarrys.add(sum);  
+                //System.out.println ("added: not" + allCarrys.get(allCarrys.size()-2) + " and not" + allCarrys.get(allCarrys.size()-1));
+            }    
         }
-        constraints.add(carry);
+        //constraints.add(carry);
         //System.out.println ("added : not " + carry);
-        //allCarrys.add(carry);
+        allCarrys.add(carry);
         //constraints.set(constraints.size()-1, SmtFactory.createConjunction(constraints.get(constraints.size()-1), carry).simplify());
         //two negative numbers -> negative outcome 
         //two positive numbers -> positive outcome
 
         //return constraints;
         //System.out.println ("result of adding " + c + " and " + d + " is " + new ArrayList<>(constraints.subList(0, bidWidth)));
-        //return new ArrayList<>(constraints.subList(0, bidWidth));
-        return constraints;
+        return new ArrayList<>(constraints.subList(0, bidWidth));
+        //return constraints;
 
         
     }
@@ -456,7 +455,7 @@ public class BitBlasting{
     }
 
     public ArrayList<Constraint> multiply(ArrayList<Constraint> lhs, ArrayList<Constraint> rhs) {
-        System.out.println ("going to multiply " + lhs + " and " + rhs);
+        //System.out.println ("going to multiply " + lhs + " and " + rhs);
 
         ArrayList<Constraint> result = new ArrayList<>();
 
@@ -472,12 +471,12 @@ public class BitBlasting{
                 ArrayList<Constraint> shifted = new ArrayList<>();
                 ArrayList<Constraint> rhscopy = new ArrayList<>(rhs); 
                 shifted = leftShift(rhscopy, i);
-                System.out.println ("going to add " + shifted + " AND " + result);
+                //System.out.println ("going to add " + shifted + " AND " + result);
                 result = new ArrayList<>(add(shifted, result));
-                System.out.println ("result is: " + result);
+                //System.out.println ("result is: " + result);
             }
         }
-        System.out.println ("final result is: " + result);
+        //System.out.println ("final result is: " + result);
         return result; // This represents the product
         //return new ArrayList<>(result.subList(0, bidWidth));
 
@@ -504,7 +503,7 @@ public class BitBlasting{
         for (int i =0; i < bidWidth; i++){
             constraints.add(problem.createBooleanVariable());
         }
-        System.out.println ("converted " + v + " to " + constraints);
+        //System.out.println ("converted " + v + " to " + constraints);
         //return SmtFactory.createConjunction(constraints);
         //final ArrayList<Constraint> end =new ArrayList<>(constraints);
         allVariables.set(v.queryIndex()-1, new ArrayList<>(constraints));
@@ -635,7 +634,7 @@ public class BitBlasting{
 
     // }
 
-    public ArrayList<Valuation> generateAllValuations(int numVariables) {
+    public static ArrayList<Valuation> generateAllValuations(int numVariables) {
         ArrayList<Valuation> valuations = new ArrayList<>();
         
         // Total number of valuations is 2^numVariables
@@ -655,7 +654,7 @@ public class BitBlasting{
         return valuations;
     }
 
-    public ArrayList<Valuation> test(SmtProblem problem, Constraint formula){
+    public static ArrayList<Valuation> test(SmtProblem problem, Constraint formula){
         
 
 
