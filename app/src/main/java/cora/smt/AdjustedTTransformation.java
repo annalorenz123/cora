@@ -18,7 +18,8 @@ public class AdjustedTTransformation{
         System.out.println (formula);
         //return formula;
         // System.out.println ("not in cnf: " + formula);
-        ArrayList<Constraint> implications = replaceSubFormulaForVar(problem, problem.createBooleanVariable(), formula);
+        BVar full = problem.createBooleanVariable();
+        ArrayList<Constraint> implications = replaceSubFormulaForVar(problem, full , formula);
         System.out.println ("subformulas made");
         System.out.println (implications);
         // ArrayList<Constraint> biImplications = new ArrayList<>();
@@ -28,7 +29,7 @@ public class AdjustedTTransformation{
         // System.out.println ("before replacing ");
         // biImplications = replaceFormulaForVariable(biImplications);
         // System.out.println ("after replacing ");
-        final Constraint full = ((Not)(((Disjunction)implications.get(implications.size()-1)).queryChild(1))).queryChild();
+        //final Constraint full = ((Not)(((Disjunction)implications.get(implications.size()-1)).queryChild(1))).queryChild();
         System.out.println ("full: " + full);
         //biImplications = biImplicationsToImplications(biImplications);
         //System.out.println (biImplications);
@@ -220,10 +221,10 @@ public class AdjustedTTransformation{
                 }
                 else throw new Error (con.queryChild(i) + " not supported in replacesubformulaforvar");
             }
-            for (Constraint cons : args){
-                list.add(SmtFactory.createImplication(previousVar, cons));
-            }
-            //list.add(SmtFactory.createImplication(previousVar, SmtFactory.createConjunction(args)));
+            // for (Constraint cons : args){
+            //     list.add(SmtFactory.createImplication(previousVar, cons));
+            // }
+            list.add(SmtFactory.createImplication(previousVar, SmtFactory.createConjunction(args)));
 
         } 
         else if (c instanceof Disjunction d){

@@ -13,6 +13,9 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 
 public class BitBlasting{
+    double timeBitBlasting = 0;
+    double timeTseitinTransformation = 0;
+    double timeMiniSat = 0;
     static int bidWidth = 5;
     ArrayList<Constraint> allCarrys = new ArrayList<>();
     static ArrayList<ArrayList<Constraint>> allVariables = new ArrayList<>();
@@ -21,6 +24,7 @@ public class BitBlasting{
 
     public SmtSolver.Answer checkSatisfiability(SmtProblem problem, ArrayList<IntegerExpression> expressions, boolean negative){
         if (expressions.size()==0) return new SmtSolver.Answer.YES(new Valuation());
+        long startTime = System.nanoTime();
         for (int i =0; i < problem.numberIntegerVariables(); i++){
             allVariables.add(new ArrayList<>());
         }
@@ -28,67 +32,53 @@ public class BitBlasting{
         ArrayList<IntegerExpression> c = new ArrayList<>();
         ArrayList<Constraint> args = new ArrayList<>();
         //System.out.println ("number of expressions: " + expressions.size());
-        for (int i =0; i < expressions.size(); i++){
+         for (int i =0; i < expressions.size(); i++){
             //make switch
             switch(expressions.get(i)){
-                case Addition a: c = makeSides(a); break;
-                case CMult cm: c = makeSides(cm); break;
+                case Addition a: c.addAll(makeSides(a)); break;
+                case CMult cm: c.addAll(makeSides(cm)); break;
                 case IVar v : c.add(v); c.add(SmtFactory.createValue(0)); break;
                 default: throw new Error("expression of form: " + expressions.get(i) + " not supported.");
             }
-            System.out.println (c);
-            ArrayList<Constraint> leftSide = convert(problem, c.get(0));
-            ArrayList<Constraint> rightSide = convert(problem, c.get(1));
-            System.out.println ("left side converted: " + leftSide);
-            // for (int a =0; a < leftSide.size(); a++){
-            //     System.out.println ("s" + a + ": " + leftSide.get(a));
-            // }
-            System.out.println ("right side: " +rightSide);
-            // for (int a =0; a < rightSide.size(); a++){
-            //     System.out.println ("s" + a + ": " + rightSide.get(a));
-            // }
-            // if (leftSide.size() > bidWidth){
-            //     leftSide = new ArrayList<>(leftSide.subList(0, bidWidth));
-            // }
-            // if (rightSide.size() > bidWidth){
-            //     rightSide = new ArrayList<>(rightSide.subList(0, bidWidth));
-            // }
-            Constraint end = greaterOrEqual(leftSide, rightSide);
-            //System.out.println ("end arg: " + end);
-            //System.out.println ("end: " + end);
-            args.add(end);
-            // if (expressions.get(i) instanceof IVar v){
-            //     System.out.println ("found variable");
-            //     c = convert(problem, v);
-            // }
-            
-            // else if (expressions.get(i) instanceof CMult mult){
-            //     c = multiply(convert((IValue)SmtFactory.createValue(mult.queryConstant())), convert(problem, (IVar)mult.queryChild()));
-            // }
-
         }
-        //TseitinTransformation tt = new TseitinTransformation();
-        // for (Constraint cons : allCarrys){
-        //     args.add(SmtFactory.createNegation(cons).simplify());
-        // }
+        int maxBidWidth =0;         
+        for (int i =0; i < c.size(); i+=2){
+            int currentBidWidth = BitBlastingFaster.determineBidWidth(c.get(i), c.get(i+1));
+            if ( currentBidWidth > maxBidWidth){
+                maxBidWidth = currentBidWidth;
+            }
+        }
+        System.out.println ("BITWIDTH GOING TO BE: " + maxBidWidth);
+        for (int i =0; i < c.size(); i+=2){
+            ArrayList<Constraint> leftSide = convert(problem, c.get(i));
+            ArrayList<Constraint> rightSide = convert(problem, c.get(i+1));
+            Constraint end = greaterOrEqual(leftSide, rightSide);
+            args.add(end);
+        }
         Constraint endConjunction = SmtFactory.createConjunction(args).simplify();
-        //System.out.println (endConjunction);
+        long endTime = System.nanoTime();
+        timeBitBlasting = (endTime - startTime) / 1_000_000.0;
+        if (endConjunction instanceof Truth) return new SmtSolver.Answer.YES(makeZeroValuation(problem, new Valuation()));
         //System.out.println (endConjunction.toString().length());
+        startTime = System.nanoTime();
         endConjunction = TseitinTransformation.tseitinTransformation(endConjunction, problem);
-        // endConjunction = AdjustedTTransformation.tseitinTransformation(endConjunction, problem);
+        //endConjunction = AdjustedTTransformation.tseitinTransformation(endConjunction, problem);
+        endTime = System.nanoTime();
+        timeTseitinTransformation = (endTime - startTime) / 1_000_000.0;
+
         //endConjunction = ToCNF.toCNF(problem,endConjunction);
-        // System.out.println ("end conjunction num vars: " + problem.numberBooleanVariables());
-        // //System.out.println (endConjunction);
         //return new SmtSolver.Answer.MAYBE("not implemented yet.");
-        // CnfToDimacs cnf = new CnfToDimacs();
-        
+        System.out.println ("BITWIDTH was: " + maxBidWidth);
         try{
             CnfToDimacs.convertToDimacs(endConjunction, problem.numberBooleanVariables(), "output.cnf");
         }
         catch (IOException e){
             System.out.println (e);
         }
+        startTime = System.nanoTime();
         MiniSatCaller.callMiniSat("output.cnf", "output.txt");
+        endTime = System.nanoTime();
+        timeMiniSat = (endTime - startTime) / 1_000_000.0;
         return readOutput(problem, expressions, negative);
         // ArrayList<Valuation> valuations = test(problem, endConjunction);
         // if (valuations.size()==0) return new SmtSolver.Answer.NO();
@@ -130,6 +120,14 @@ public class BitBlasting{
 
     }
 
+    public ArrayList<Double> getTimes (){
+        ArrayList<Double> list = new ArrayList<>();
+        list.add(timeBitBlasting);
+        list.add(timeTseitinTransformation);
+        list.add(timeMiniSat);
+        return list;
+    }
+
     public SmtSolver.Answer readOutput (SmtProblem problem, ArrayList<IntegerExpression> expressions, boolean negative){
         //System.out.println ("numintvars: " + problem.numberIntegerVariables());
         String filePath = "output.txt"; // Adjust path if needed
@@ -141,24 +139,24 @@ public class BitBlasting{
                 String valuation = reader.readLine();
                 //System.out.println (valuation);
                 ArrayList<String> numbersList = new ArrayList<>(Arrays.asList(valuation.split(" ")));
-                System.out.println(problem.numberIntegerVariables());
+                //System.out.println(problem.numberIntegerVariables());
                 if (!negative){
                     for (int i =1; i <= problem.numberIntegerVariables(); i++){
-                        System.out.println ("at variable " + i);
+                        //System.out.println ("at variable " + i);
                         ArrayList<Constraint> binary = new ArrayList<>();
                         for (int j =1; j <= bidWidth; j++){
-                            System.out.println ("looking at: " + ((i-1)*bidWidth+(j-1)));
+                            //System.out.println ("looking at: " + ((i-1)*bidWidth+(j-1)));
                             if (numbersList.get((i-1)*bidWidth+(j-1)).startsWith("-")){
-                                System.out.println("setting " + ((i-1)*bidWidth+(j-1)) + " to false");
+                                //System.out.println("setting " + ((i-1)*bidWidth+(j-1)) + " to false");
                                 binary.add(SmtFactory.createFalse());
                             }
                             else {
                                 binary.add(SmtFactory.createTrue());
-                                System.out.println("setting " + ((i-1)*bidWidth+(j-1)) + " to true");
+                                //System.out.println("setting " + ((i-1)*bidWidth+(j-1)) + " to true");
                             }
                         }
                         
-                        System.out.println (allVariables);
+                        //System.out.println (allVariables);
                         
                         for (int a =0; a < allVariables.size(); a++){
                             while (allVariables.get(a).isEmpty()) {
@@ -167,7 +165,7 @@ public class BitBlasting{
                             }
                             int index = ((BVar)(removeFalses(allVariables.get(a))).get(0)).queryIndex();
                             if (((i-1)*bidWidth+1) == index){
-                                System.out.println ("setting variable "+ (a+1) + " with starting index " + index);
+                                //System.out.println ("setting variable "+ (a+1) + " with starting index " + index);
                                 v.setInt(a+1, convertBinToDec(binary));
                                 break;
                             }
@@ -267,6 +265,21 @@ public class BitBlasting{
             //System.out.println ("int var with index: " + i + " and valuation: " + allVariables.get(i-1));
             int decimal = convertBinToDec (allVariables.get(i-1), v);
             finalVal.setInt(i, decimal);
+        }
+        return finalVal;
+    }
+
+
+    public static Valuation makeZeroValuation (SmtProblem problem, Valuation v){
+        Valuation finalVal = new Valuation();
+        //System.out.println (allVariables);
+        for (int i = 1; i <= problem.numberIntegerVariables(); i++){
+            if (allVariables.get(i-1).size() > bidWidth){
+                allVariables.set(i-1, removeFalses(allVariables.get(i-1)));
+            }
+            //System.out.println ("int var with index: " + i + " and valuation: " + allVariables.get(i-1));
+            //int decimal = convertBinToDec (allVariables.get(i-1), v);
+            finalVal.setInt(i, 0);
         }
         return finalVal;
     }
@@ -407,7 +420,7 @@ public class BitBlasting{
         else if (d.size() > c.size()){
             c = addFalses(c, d.size());
         }
-        System.out.println ("going to add: " + c + " and "+d);
+        //System.out.println ("going to add: " + c + " and "+d);
         
         for (int i =0; i < c.size() ; i++){
             Constraint c_i = c.get(i);
@@ -456,7 +469,7 @@ public class BitBlasting{
     }
 
     public ArrayList<Constraint> multiply(ArrayList<Constraint> lhs, ArrayList<Constraint> rhs) {
-        System.out.println ("going to multiply " + lhs + " and " + rhs);
+        //System.out.println ("going to multiply " + lhs + " and " + rhs);
 
         ArrayList<Constraint> result = new ArrayList<>();
 
@@ -472,18 +485,18 @@ public class BitBlasting{
                 ArrayList<Constraint> shifted = new ArrayList<>();
                 ArrayList<Constraint> rhscopy = new ArrayList<>(rhs); 
                 shifted = leftShift(rhscopy, i);
-                System.out.println ("going to add " + shifted + " AND " + result);
+                //System.out.println ("going to add " + shifted + " AND " + result);
                 result = new ArrayList<>(add(shifted, result));
-                System.out.println ("result is: " + result);
+                //System.out.println ("result is: " + result);
             }
         }
-        System.out.println ("final result is: " + result);
+        //System.out.println ("final result is: " + result);
         return result; // This represents the product
         //return new ArrayList<>(result.subList(0, bidWidth));
 
     }
 
-    public ArrayList<Constraint> removeFalses (ArrayList<Constraint> formula){
+    public static ArrayList<Constraint> removeFalses (ArrayList<Constraint> formula){
         //System.out.println ("before:" + formula);
         ArrayList<Constraint> newFormula = new ArrayList<>();
         for (int i =0; i < formula.size(); i++){
@@ -504,7 +517,7 @@ public class BitBlasting{
         for (int i =0; i < bidWidth; i++){
             constraints.add(problem.createBooleanVariable());
         }
-        System.out.println ("converted " + v + " to " + constraints);
+        //System.out.println ("converted " + v + " to " + constraints);
         //return SmtFactory.createConjunction(constraints);
         //final ArrayList<Constraint> end =new ArrayList<>(constraints);
         allVariables.set(v.queryIndex()-1, new ArrayList<>(constraints));
@@ -529,6 +542,7 @@ public class BitBlasting{
             else constraints.add(SmtFactory.createFalse());
         }
         //return SmtFactory.createConjunction(constraints);
+        //System.out.println ("converted " +v+ " to " + constraints);
         return constraints;
     }
 
@@ -573,7 +587,7 @@ public class BitBlasting{
         }
         int n = minuend.size();
         //System.out.println ("size of " + minuend + " is " + n);
-        ArrayList<Constraint> result = new ArrayList<>();
+        //ArrayList<Constraint> result = new ArrayList<>();
         Constraint borrow = SmtFactory.createFalse(); // Initial borrow is false (no borrow)
         
         for (int i = 0; i < n; i++) {
@@ -584,9 +598,9 @@ public class BitBlasting{
             //System.out.println ("b: " + b);
             // Perform the subtraction at this bit position:
             // result[i] = a XOR b XOR borrow
-            Constraint diff = xor(xor(a,b),borrow);
+            //Constraint diff = xor(xor(a,b),borrow);
             //System.out.println ("hallo");
-            result.add(diff);
+            //result.add(diff);
             //System.out.println ("hello");
             // Calculate the new borrow:
             // borrow = (NOT a AND b) OR (borrow AND (NOT a XOR b))
@@ -742,5 +756,39 @@ public class BitBlasting{
     //     }
 
     // }
+
+    public static int determineBidWidth (IntegerExpression leftSide, IntegerExpression rightSide){
+        if (maxValue(leftSide) >= maxValue(rightSide)){
+            return findExponent(maxValue(leftSide));
+        }
+        return findExponent(maxValue(rightSide));
+        
+    }
+
+    public static int maxValue (IntegerExpression expr){
+        switch (expr){
+            case IValue b: return b.queryValue();
+            case IVar b : return ((int)Math.pow(2,bidWidth))-1;
+            case CMult cm : return cm.queryConstant()*maxValue(cm.queryChild());
+            case Addition a: 
+                int total = maxValue(a.queryChild(1));
+                for (int i =2; i <= a.numChildren(); i++){
+                    total += maxValue(a.queryChild(i));
+                }
+                return total;
+            default: throw new Error (expr + " not supported in maxvalue");
+        }
+    }
+
+    public static int findExponent(int number) {
+        if (number <= 0) {
+            throw new IllegalArgumentException("Number must be greater than 0");
+        }
+        int exponent = 0;
+        while ((1 << exponent) < number) {
+            exponent++;
+        }
+        return exponent + 1; // Add 1 to align with your example
+    }
   
 }

@@ -243,7 +243,7 @@ public class SimplexMethod {
     }
     Valuation val = makeValuation(numberIntegerVariables, solution, negative); 
     if (extraCheck(val, expressions)){
-      if (negative) return adjustedValuation(numberIntegerVariables, val);
+      //if (negative) return adjustedValuation(numberIntegerVariables, val);
       System.out.println ("valuation: " + val);
       return new SmtSolver.Answer.YES(val);
     }
@@ -578,6 +578,14 @@ public class SimplexMethod {
     }
     //System.out.println ("expression with min bound: " + expressions.get(index));
     return expressions.get(index);
+  }
+
+  public ArrayList<Double> getTimes (){
+    ArrayList<Double> list = new ArrayList<>();
+    list.add(0.0);
+    list.add(0.0);
+    list.add(0.0);
+    return list;
   }
 
   public static boolean positiveFactor (QExpression objFunc){

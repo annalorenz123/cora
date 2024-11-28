@@ -129,18 +129,20 @@ public class ToCNF {
 
     public static int countNumberOfObjects (Constraint c, int count){
         switch (c){
-            case BVar b : return count++;
-            case Not n : return countNumberOfObjects (n.queryChild(), count+1);
+            case BVar b : return count+1;
+            case Not n : 
+                if (n.queryChild() instanceof BVar) return 1;
+                else return countNumberOfObjects (n.queryChild(), count+1);
             case Conjunction con :
                 count ++;
                 for (int i =1; i <= con.numChildren(); i++){
-                    count =+ countNumberOfObjects (con.queryChild(i), count);
+                    count =+ countNumberOfObjects (con.queryChild(i), 0);
                 }
                 return count;
             case Disjunction d :
                 count ++;
                 for (int i =1; i <= d.numChildren(); i++){
-                    count =+ countNumberOfObjects (d.queryChild(i), count);
+                    count =+ countNumberOfObjects (d.queryChild(i), 0);
                 }
                 return count;
             default : throw new Error (c + " not supported in countnumberofobjects");

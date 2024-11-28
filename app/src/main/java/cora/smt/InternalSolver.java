@@ -46,6 +46,8 @@ public class InternalSolver implements SmtSolver {
     ArrayList<IntegerExpression> expressions = getExpressions(children);
     System.out.println("expressions: " +expressions);
   
+    // BitBlastingFaster bb = new BitBlastingFaster();
+    // SmtSolver.Answer answer = bb.checkSatisfiability(problem, expressions, false);
     BitBlasting bb = new BitBlasting();
     SmtSolver.Answer answer = bb.checkSatisfiability(problem, expressions, false);
     // if (answer instanceof SmtSolver.Answer.NO){
@@ -53,8 +55,8 @@ public class InternalSolver implements SmtSolver {
     //   // BitBlasting bb2 = new BitBlasting();
     //   // answer = bb2.checkSatisfiability(problem, expressions, false);
     // }
-    // SimplexMethod simpmet = new SimplexMethod();
-    // SmtSolver.Answer answer = simpmet.checkSatisfiability(problem, expressions, false);
+    // SimplexMethod bb = new SimplexMethod();
+    // SmtSolver.Answer answer = bb.checkSatisfiability(problem, expressions, false);
 
     long endTime = System.nanoTime();
     long duration = endTime - startTime; // Time in nanoseconds
@@ -63,10 +65,15 @@ public class InternalSolver implements SmtSolver {
     File file = new File("executionTimesBitBlasting.txt");
     try (BufferedWriter writer = new BufferedWriter(new FileWriter(file, true))) {
         // Append the line and a newline character
+
+        writer.write(Double.toString(executionTime));
+        ArrayList<Double> times = bb.getTimes();
+        writer.write (", " + Double.toString(times.get(0)));
+        writer.write (", " + Double.toString(times.get(1)));
+        writer.write (", " + Double.toString(times.get(2)));
         if (answer instanceof SmtSolver.Answer.NO){
-          writer.write(Double.toString(executionTime) + " no ");
+          writer.write(" NO");
         }
-        else writer.write(Double.toString(executionTime));
         writer.newLine();
         //System.out.println("Line added successfully to: " + filePath);
     } catch (IOException e) {
