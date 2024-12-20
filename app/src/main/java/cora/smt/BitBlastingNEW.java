@@ -17,7 +17,7 @@ public class BitBlastingNEW{
     double timeBitBlasting = 0;
     double timeTseitinTransformation = 0;
     double timeMiniSat = 0;
-    static int bidWidth = 3;
+    static int bidWidth = 10;
     ArrayList<Constraint> allCarrys = new ArrayList<>();
     static ArrayList<ArrayList<BVar>> allVariables = new ArrayList<>();
     static ArrayList<BVar> originalVars = new ArrayList<>();
@@ -62,42 +62,43 @@ public class BitBlastingNEW{
         }
         System.out.println ("BITWIDTH GOING TO BE: " + maxBidWidth);
         for (int i =0; i < c.size(); i+=2){
+            System.out.println ("sides: " + c.get(i) + " and " + c.get(i+1));
             ArrayList<BVar> leftSide = convert(problem, c.get(i));
             ArrayList<BVar> rightSide = convert(problem, c.get(i+1));
             Constraint end = greaterOrEqual(leftSide, rightSide);
             args.add(end);
         }
-        Constraint endConjunction = SmtFactory.createConjunction(args).simplify();
-        
+        Constraint endConjunction = SmtFactory.createConjunction(args);
         
         System.out.println ("end: " + endConjunction);
         endConjunction = addConstraints(endConjunction);
+        ((Conjunction)endConjunction).addChild(SmtFactory.createConjunction(SmtFactory.createNegation(falseVar),trueVar));
         System.out.println ("end2: " + endConjunction);
-        System.out.println ("end constraints: "+ constraints);
-        if (endConjunction instanceof Truth) {
-            System.out.println ("formula is true");
+        //System.out.println ("end constraints: "+ constraints);
+        // if (endConjunction instanceof Truth) {
+        //     System.out.println ("formula is true");
             
-            SmtSolver.Answer answer = new SmtSolver.Answer.YES(makeZeroValuation(allVariables, problem, new Valuation()));
-            long endTime = System.nanoTime();
-            timeBitBlasting = (endTime - startTime) / 1_000_000.0;
-            return answer;
-        }
+        //     SmtSolver.Answer answer = new SmtSolver.Answer.YES(makeZeroValuation(allVariables, problem, new Valuation()));
+        //     long endTime = System.nanoTime();
+        //     timeBitBlasting = (endTime - startTime) / 1_000_000.0;
+        //     return answer;
+        // }
         long endTime = System.nanoTime();
         timeBitBlasting = (endTime - startTime) / 1_000_000.0;
         //System.out.println (endConjunction.toString().length());
         startTime = System.nanoTime();
-        int numberofobjectsbefore = ToCNF.countNumberOfObjects(endConjunction,0);
-        endConjunction = TseitinTransformation.tseitinTransformation(endConjunction, problem);
-        // //endConjunction = AdjustedTTransformation.tseitinTransformation(endConjunction, problem);
+        //int numberofobjectsbefore = ToCNF.countNumberOfObjects(endConjunction,0);
+        //endConjunction = TseitinTransformation.tseitinTransformation(endConjunction, problem);
+        endConjunction = AdjustedTTransformation.tseitinTransformation(endConjunction, problem);
         // //endConjunction = ToCNF.toCNF(problem,endConjunction);
 
         int numberofobjectsafter = ToCNF.countNumberOfObjects(endConjunction,0);
         
         // //return new SmtSolver.Answer.MAYBE("not implemented yet.");
-        System.out.println ("number of objects before: " + numberofobjectsbefore + " and after: " + numberofobjectsafter);
+        //System.out.println ("number of objects before: " + numberofobjectsbefore + " and after: " + numberofobjectsafter);
         System.out.println ("BITWIDTH was: " + maxBidWidth);
-        double ratiott = (double)numberofobjectsafter / numberofobjectsbefore;
-        System.out.println ("ratio tt: " + Double.toString(ratiott));
+        //double ratiott = (double)numberofobjectsafter / numberofobjectsbefore;
+        //System.out.println ("ratio tt: " + Double.toString(ratiott));
         endTime = System.nanoTime();
         timeTseitinTransformation = (endTime - startTime) / 1_000_000.0;
         startTime = System.nanoTime();
@@ -160,7 +161,7 @@ public class BitBlastingNEW{
 
     }
 
-        public ArrayList<BVar> add(SmtProblem problem, Addition a ){
+    public ArrayList<BVar> add(SmtProblem problem, Addition a ){
         ArrayList<BVar> con = new ArrayList<>();
 
         switch (a.queryChild(1)){
@@ -183,12 +184,21 @@ public class BitBlastingNEW{
         //System.out.println ("result of addition: " + con);
         return con;
         //return new ArrayList<>(con.subList(0, bidWidth));
+    }
 
+    public boolean notConstant(ArrayList<BVar> var){
+        for (BVar b : var){
+            if (b.queryIndex() != 1 && b.queryIndex() != 2){
+                return true;
+            }
+        }
+        return false;
     }
 
     public ArrayList<BVar> add (ArrayList<BVar> c, ArrayList<BVar> d){
         if (isZero(c)) return d;
         if (isZero(d)) return c;
+
         Constraint carry = SmtFactory.createFalse();
         if (c.size() > d.size()){
             d = addFalses(d, c.size());
@@ -196,61 +206,41 @@ public class BitBlastingNEW{
         else if (d.size() > c.size()){
             c = addFalses(c, d.size());
         }
-        //System.out.println ("going to add: " + c + " and "+d);
+        System.out.println ("going to add: " + c + " and "+d);
         ArrayList<BVar> result = new ArrayList<>();
         for (int i =0; i < c.size() ; i++){
             BVar c_i = c.get(i);
             BVar d_i = d.get(i);
-            // if (c_i.queryName().contains("false")){
-            //     sumvar = d_i;
-            // }
             Constraint c_xor_d= xor(c_i, d_i);
             BVar sumvar = problem1.createBooleanVariable();
             result.add(sumvar);
             if (i==0){
                 constraints.add(SmtFactory.createIff(sumvar, c_xor_d));
             }
-            else constraints.add(SmtFactory.createIff(sumvar, xor(c_xor_d, carry)));
-            //Constraint sum = SmtFactory.createConjunction(SmtFactory.createDisjunction(c_xor_d, carry).simplify(), SmtFactory.createNegation(SmtFactory.createConjunction(c_xor_d, carry).simplify()).simplify()).simplify();
-            
-            carry = problem1.createBooleanVariable();
+            else constraints.add(SmtFactory.createIff(sumvar, xor(c_xor_d, carry)));           
+            Constraint newcarry = SmtFactory.createFalse();
             if (i==0){
-                constraints.add(SmtFactory.createIff(carry, SmtFactory.createConjunction(c_i, d_i)));
+                newcarry = SmtFactory.createConjunction(c_i, d_i);
             }
             else{
-                constraints.add(SmtFactory.createIff(carry, SmtFactory.createDisjunction(SmtFactory.createConjunction(c_i,d_i), SmtFactory.createConjunction(carry, c_xor_d).simplify()).simplify()));
+                newcarry = SmtFactory.createDisjunction(SmtFactory.createConjunction(c_i,d_i), SmtFactory.createConjunction(carry, c_xor_d));
             }
-
-            //carry = SmtFactory.createDisjunction(SmtFactory.createConjunction(c_i,d_i).simplify(), SmtFactory.createConjunction(carry, c_xor_d).simplify()).simplify();
-
-            //if (i == bidWidth-1) constraints.add(SmtFactory.createConjunction(sum, SmtFactory.createNegation(carry)));
-            // if (i >= bidWidth) {
-            //     //System.out.println (i+" geq than " + bidWidth);
-            //     allCarrys.add(carry);  
-            //     allCarrys.add(sum);  
-            //     System.out.println ("added: not" + allCarrys.get(allCarrys.size()-2) + " and not" + allCarrys.get(allCarrys.size()-1));
-            // }    
+            carry = problem1.createBooleanVariable();
+            constraints.add(SmtFactory.createIff(carry, newcarry));
         }
-        BVar growVar = problem1.createBooleanVariable();
-        result.add(growVar);
-        constraints.add(SmtFactory.createIff(growVar, carry));
+        //BVar growVar = problem1.createBooleanVariable();
+        result.add((BVar)carry);
+        //constraints.add(SmtFactory.createIff(growVar, carry));
         System.out.println ("constraints: " + constraints);
-        //System.out.println ("added : not " + carry);
-        //allCarrys.add(carry);
-        //constraints.set(constraints.size()-1, SmtFactory.createConjunction(constraints.get(constraints.size()-1), carry).simplify());
-        //two negative numbers -> negative outcome 
-        //two positive numbers -> positive outcome
-
-        //return constraints;
-        //System.out.println ("result of adding " + c + " and " + d + " is " + new ArrayList<>(constraints.subList(0, bidWidth)));
-        //return new ArrayList<>(constraints.subList(0, bidWidth));
         return result;        
     }
 
     public Constraint subtract(ArrayList<BVar> minuend, ArrayList<BVar> subtrahend) {
         //calculate minuend-subtrahend
-        
         System.out.println ("going to subtract "+ minuend + " and " + subtrahend);
+        if (isZero(subtrahend)) return falseVar;
+        if (isZero(minuend)) return SmtFactory.createDisjunction(convertList(subtrahend));
+        
         // Ensure both binary numbers are of the same length
         if (minuend.size()!= subtrahend.size()) {
             
@@ -275,34 +265,35 @@ public class BitBlastingNEW{
             // Perform the subtraction at this bit position:
             // result[i] = a XOR b XOR borrow
 
-            BVar diffvar = problem1.createBooleanVariable();
-            if (i==0){
-                Constraint diff = xor(a,b);
-                //constraints.add(SmtFactory.createIff(diffvar, diff));
-                System.out.println ("diff: " + SmtFactory.createIff(diffvar, diff));
-            }
-            else{
-                Constraint diff = xor(xor(a,b),borrow);
-                //constraints.add(SmtFactory.createIff(diffvar, diff));
-                System.out.println ("diff: " + SmtFactory.createIff(diffvar, diff));
-            }
+            // BVar diffvar = problem1.createBooleanVariable();
+            // if (i==0){
+            //     Constraint diff = xor(a,b);
+            //     //constraints.add(SmtFactory.createIff(diffvar, diff));
+            //     System.out.println ("diff: " + SmtFactory.createIff(diffvar, diff));
+            // }
+            // else{
+            //     Constraint diff = xor(xor(a,b),borrow);
+            //     //constraints.add(SmtFactory.createIff(diffvar, diff));
+            //     System.out.println ("diff: " + SmtFactory.createIff(diffvar, diff));
+            // }
 
             // Calculate the new borrow:
             // borrow = (NOT a AND b) OR (borrow AND (NOT a XOR b))
             //BVar borrowvar = problem1.createBooleanVariable();
-            borrow = problem1.createBooleanVariable();
+            Constraint newBorrow = SmtFactory.createFalse();
             if (i == 0){
-                Constraint newBorrow = SmtFactory.createConjunction(SmtFactory.createNegation(a), b);
-                constraints.add(SmtFactory.createIff(borrow, newBorrow));
-                System.out.println ("borrow: " + SmtFactory.createIff(borrow, newBorrow));
+                newBorrow = SmtFactory.createConjunction(SmtFactory.createNegation(a), b);
+                //System.out.println ("borrow: " + SmtFactory.createIff(borrow, newBorrow));
             }
             else{
-                Constraint newBorrow = SmtFactory.createDisjunction(SmtFactory.createConjunction(SmtFactory.createNegation(a), b), SmtFactory.createConjunction(borrow, xor(SmtFactory.createNegation(a),b)));
-                constraints.add(SmtFactory.createIff(borrow, newBorrow));
-                System.out.println ("borrow: " + SmtFactory.createIff(borrow, newBorrow));
+                newBorrow = SmtFactory.createDisjunction(SmtFactory.createConjunction(SmtFactory.createNegation(a), b), SmtFactory.createConjunction(borrow, SmtFactory.createNegation(xor(a,b))));
             }
             // Update the borrow for the next bit position
-            result.add(diffvar);
+            borrow = problem1.createBooleanVariable();
+            constraints.add(SmtFactory.createIff(borrow, newBorrow));
+            System.out.println ("borrow: " + SmtFactory.createIff(borrow, newBorrow));
+
+            //result.add(diffvar);
             //borrow = borrowvar;
         }
         //System.out.println ("adding: " + SmtFactory.createIff(trueVar, SmtFactory.createNegation(borrow)));
@@ -470,7 +461,7 @@ public class BitBlastingNEW{
             Constraint conjunction = SmtFactory.createConjunction(endConjunction, SmtFactory.createImplication(first.queryLeft(), first.queryRight()));
             ((Conjunction)conjunction).addChild(SmtFactory.createImplication(first.queryRight(), first.queryLeft()));
             for (int i =1; i < constraints.size(); i++){
-                System.out.println ("adding" + constraints.get(i) + " to " + endConjunction);
+                //System.out.println ("adding" + constraints.get(i) + " to " + endConjunction);
                 ((Conjunction)conjunction).addChild(SmtFactory.createImplication(((Iff)constraints.get(i)).queryLeft(), ((Iff)constraints.get(i)).queryRight()));
                 ((Conjunction)conjunction).addChild(SmtFactory.createImplication(((Iff)constraints.get(i)).queryRight(), ((Iff)constraints.get(i)).queryLeft()));
             }
