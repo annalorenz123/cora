@@ -17,7 +17,7 @@ public class BitBlastingNEW{
     double timeBitBlasting = 0;
     double timeTseitinTransformation = 0;
     double timeMiniSat = 0;
-    static int bidWidth = 10;
+    static int bidWidth = 4;
     ArrayList<Constraint> allCarrys = new ArrayList<>();
     static ArrayList<ArrayList<BVar>> allVariables = new ArrayList<>();
     static ArrayList<BVar> originalVars = new ArrayList<>();
@@ -72,7 +72,7 @@ public class BitBlastingNEW{
         
         System.out.println ("end: " + endConjunction);
         endConjunction = addConstraints(endConjunction);
-        ((Conjunction)endConjunction).addChild(SmtFactory.createConjunction(SmtFactory.createNegation(falseVar),trueVar));
+        //((Conjunction)endConjunction).addChild(SmtFactory.createConjunction(SmtFactory.createNegation(falseVar),trueVar));
         System.out.println ("end2: " + endConjunction);
         //System.out.println ("end constraints: "+ constraints);
         // if (endConjunction instanceof Truth) {
@@ -90,7 +90,7 @@ public class BitBlastingNEW{
         //int numberofobjectsbefore = ToCNF.countNumberOfObjects(endConjunction,0);
         //endConjunction = TseitinTransformation.tseitinTransformation(endConjunction, problem);
         endConjunction = AdjustedTTransformation.tseitinTransformation(endConjunction, problem);
-        // //endConjunction = ToCNF.toCNF(problem,endConjunction);
+        // // //endConjunction = ToCNF.toCNF(problem,endConjunction);
 
         int numberofobjectsafter = ToCNF.countNumberOfObjects(endConjunction,0);
         
@@ -109,7 +109,7 @@ public class BitBlastingNEW{
             System.out.println (e);
         }
         
-        MiniSatCaller.callMiniSat("output.cnf", "output.txt");
+        SatCaller.callMiniSat("output.cnf", "output.txt");
         
         SmtSolver.Answer answer=  readOutput(problem, expressions, negative);
         endTime = System.nanoTime();
@@ -486,103 +486,36 @@ public class BitBlastingNEW{
         SimplexMethod sm = new SimplexMethod();
         try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
             String firstLine = reader.readLine();
-            if (firstLine.equals("SAT")) {
+            if (firstLine.equals("SAT") || firstLine.equals("SATISFIABLE")) {
                 String valuation = reader.readLine();
                 //System.out.println (valuation);
                 ArrayList<String> numbersList = new ArrayList<>(Arrays.asList(valuation.split(" ")));
-                //System.out.println(problem.numberIntegerVariables());
-                //if (!negative){
-                // for (int i =1; i <= problem.numberIntegerVariables(); i++){
-                //     //System.out.println ("at variable " + i);
-                //     ArrayList<Constraint> binary = new ArrayList<>();
-                //     for (int j =1; j <= bidWidth; j++){
-                //         //System.out.println ("looking at: " + ((i-1)*bidWidth+(j-1)));
-                //         if (numbersList.get((i-1)*bidWidth+(j-1)+2).startsWith("-")){
-                //             //System.out.println("setting " + ((i-1)*bidWidth+(j-1)) + " to false");
-                //             binary.add(SmtFactory.createFalse());
-                //         }
-                //         else {
-                //             binary.add(SmtFactory.createTrue());
-                //             //System.out.println("setting " + ((i-1)*bidWidth+(j-1)) + " to true");
-                //         }
-                //     }
-                    
-                    System.out.println ("all:" + allVariables);
-                    
-                    for (int a =0; a < allVariables.size(); a++){
-                        System.out.println ("variable: " + allVariables.get(a));
-                        ArrayList<Constraint> binary = new ArrayList<>();
-                        for (int i =0; i < bidWidth; i++){
-                            int index = ((BVar)allVariables.get(a).get(i)).queryIndex();
-                            System.out.println ("at index: " + index);
-                            
+                System.out.println ("all:" + allVariables);
+                
+                for (int a =0; a < allVariables.size(); a++){
+                    System.out.println ("variable: " + allVariables.get(a));
+                    ArrayList<Constraint> binary = new ArrayList<>();
+                    for (int i =0; i < bidWidth; i++){
+                        int index = ((BVar)allVariables.get(a).get(i)).queryIndex();
+                        System.out.println ("at index: " + index);
+                        if (index <= numbersList.size()){
                             if (numbersList.get(index-1).startsWith("-")){
                                 binary.add(SmtFactory.createFalse());
                             }
                             else{
                                 binary.add(SmtFactory.createTrue());
                             }
-
                         }
-                        v.setInt(a+1, convertBinToDec(binary));
-                        // while (allVariables.get(a).isEmpty()) {
-                        //     v.setInt(a+1, 0); 
-                        //     a++;
-                        // }
-                        // int index = ((BVar)(allVariables.get(a)).get(0)).queryIndex();
-                        // if (((i-1)*bidWidth+1)+2 == index){
-                        //     System.out.println ("setting variable "+ (a+1) + " with starting index " + index);
-                        //     v.setInt(a+1, convertBinToDec(binary));
-                        //     break;
-                        // }
-                    //}
-                    
-                    //}          
+                        else binary.add(SmtFactory.createFalse());
+
+
+                    }
+                    v.setInt(a+1, convertBinToDec(binary));       
                 }
                 if (!sm.extraCheck(v, expressions)){
                     throw new Error ("bitblasting gave answer that does not hold: " + v);
                 }
                 return new SmtSolver.Answer.YES(v);
-                // else{
-                //     for (int i =0; i <= problem.numberIntegerVariables()/3; i++){
-                //         v.setInt(i,0);
-                //     }
-                //     int it = 0;
-                //     System.out.println ("startindex: " + startIndex);
-                //     for (int i =problem.numberIntegerVariables()/3+1; i <= problem.numberIntegerVariables(); i++){
-                        
-                //         ArrayList<Constraint> binary = new ArrayList<>();
-                //         for (int j =1; j <= bidWidth; j++){
-                //             System.out.println ("index is : " + (it*bidWidth+(j-1)+startIndex));
-                //             if (numbersList.get((it*bidWidth+(j-1)+startIndex)).startsWith("-")){
-                //                 //System.out.println("setting " + ((i-1)*bidWidth+(j-1)) + " to false");
-                //                 System.out.println ("looking at: " + (it*bidWidth+(j-1)+startIndex));
-                //                 binary.add(SmtFactory.createFalse());
-                //             }
-                //             else binary.add(SmtFactory.createTrue());
-                //         }
-                //         System.out.println (binary);
-                //         System.out.println ("num int vars: " + problem.numberIntegerVariables());
-                //         System.out.println ("all variables: " + allVariables);
-                //         for (int a =problem.numberIntegerVariables()/3; a < allVariables.size(); a++){
-                //             int index = ((BVar)(removeFalses(allVariables.get(a)).get(0))).queryIndex();
-                //             if ((it*bidWidth+startIndex) == index){
-                //                 System.out.println ("setting variable "+ (a+1) + " with starting index " + index);
-                //                 v.setInt(a+1, convertBinToDec(binary));
-                //                 break;
-                //             }
-                //         }
-                //         it++;
-                //     } 
-                //     System.out.println(v);
-                //     if (!sm.extraCheck(v, expressions)){
-                //         throw new Error ("bitblasting returned valuation that does not hold.");
-                //     }
-                //     //else return sm.adjustedValuation(problem.numberIntegerVariables(), v);
-                //     return new SmtSolver.Answer.YES(v);
-                // }
-
-
             }
         } catch (IOException e) {
             System.err.println("An error occurred while reading the file: " + e.getMessage());

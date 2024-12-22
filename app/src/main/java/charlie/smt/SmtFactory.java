@@ -74,6 +74,11 @@ public class SmtFactory {
   }
 
   /** Creates a boolean variable with an index that has not yet been used. */
+  public static BVar createBooleanVariable(SmtProblem problem, String name) {
+    return problem.createBooleanVariable(name);
+  }
+
+  /** Creates a boolean variable with an index that has not yet been used. */
   public static BVar createBooleanVariable(SmtProblem problem) {
     return problem.createBooleanVariable();
   }
@@ -189,7 +194,7 @@ public class SmtFactory {
   public static Constraint createImplication(Constraint a, Constraint b) {
     if (a == null) throw new NullStorageException("Implication", "left argument");
     if (b == null) throw new NullStorageException("Implication", "right argument");
-    return new Disjunction(new Not(a).simplify(), b).simplify();
+    return new Disjunction(new Not(a), b);
   }
 
   public static Constraint createIff(Constraint a, Constraint b) {

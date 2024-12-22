@@ -39,6 +39,7 @@ public class CnfToDimacs {
             }
 
             // Add the clause to the list of clauses
+            //System.out.println ("converted " + rawClause + " to " + clause);
             clauses.add(clause);
         }
 
@@ -46,7 +47,8 @@ public class CnfToDimacs {
         try (FileWriter writer = new FileWriter(filename)) {
             // Write the problem line
             writer.write("p cnf " + numVariables + " " + clauses.size() + "\n");
-
+            writer.write ("-1 0"+ "\n");
+            writer.write ("2 0"+ "\n");
             // Write each clause
             for (List<Integer> clause : clauses) {
                 for (Integer literal : clause) {
