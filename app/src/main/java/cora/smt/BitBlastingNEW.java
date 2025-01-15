@@ -17,15 +17,15 @@ public class BitBlastingNEW{
     double timeBitBlasting = 0;
     double timeTseitinTransformation = 0;
     double timeMiniSat = 0;
-    static int bidWidth = 4;
+    static int bidWidth = 5;
     ArrayList<Constraint> allCarrys = new ArrayList<>();
     static ArrayList<ArrayList<BVar>> allVariables = new ArrayList<>();
     static ArrayList<BVar> originalVars = new ArrayList<>();
     int startIndex = 0;
     SmtProblem problem1;
-    BVar falseVar;
-    BVar trueVar;
-    
+    public static BVar falseVar;
+    public static BVar trueVar;
+
 
     public SmtSolver.Answer checkSatisfiability(SmtProblem problem, ArrayList<IntegerExpression> expressions, boolean negative){
         System.out.println (expressions);
@@ -70,10 +70,15 @@ public class BitBlastingNEW{
         }
         Constraint endConjunction = SmtFactory.createConjunction(args);
         
-        System.out.println ("end: " + endConjunction);
+        //System.out.println ("end: " + endConjunction);
         endConjunction = addConstraints(endConjunction);
-        //((Conjunction)endConjunction).addChild(SmtFactory.createConjunction(SmtFactory.createNegation(falseVar),trueVar));
-        System.out.println ("end2: " + endConjunction);
+        if (endConjunction instanceof Conjunction){
+            ((Conjunction)endConjunction).addChild(SmtFactory.createConjunction(SmtFactory.createNegation(falseVar),trueVar));
+        }
+        else {
+            endConjunction = SmtFactory.createConjunction(endConjunction, SmtFactory.createConjunction(SmtFactory.createNegation(falseVar),trueVar));
+        }
+        //System.out.println ("end2: " + endConjunction);
         //System.out.println ("end constraints: "+ constraints);
         // if (endConjunction instanceof Truth) {
         //     System.out.println ("formula is true");
@@ -87,7 +92,7 @@ public class BitBlastingNEW{
         timeBitBlasting = (endTime - startTime) / 1_000_000.0;
         //System.out.println (endConjunction.toString().length());
         startTime = System.nanoTime();
-        //int numberofobjectsbefore = ToCNF.countNumberOfObjects(endConjunction,0);
+        int numberofobjectsbefore = ToCNF.countNumberOfObjects(endConjunction,0);
         //endConjunction = TseitinTransformation.tseitinTransformation(endConjunction, problem);
         endConjunction = AdjustedTTransformation.tseitinTransformation(endConjunction, problem);
         // // //endConjunction = ToCNF.toCNF(problem,endConjunction);
@@ -109,8 +114,8 @@ public class BitBlastingNEW{
             System.out.println (e);
         }
         
-        SatCaller.callMiniSat("output.cnf", "output.txt");
-        
+        SatCaller.callKissat("output.cnf", "output.txt");
+        //SatCaller.callMiniSat("output.cnf", "output.txt");
         SmtSolver.Answer answer=  readOutput(problem, expressions, negative);
         endTime = System.nanoTime();
         timeMiniSat = (endTime - startTime) / 1_000_000.0;
@@ -206,7 +211,7 @@ public class BitBlastingNEW{
         else if (d.size() > c.size()){
             c = addFalses(c, d.size());
         }
-        System.out.println ("going to add: " + c + " and "+d);
+        //System.out.println ("going to add: " + c + " and "+d);
         ArrayList<BVar> result = new ArrayList<>();
         for (int i =0; i < c.size() ; i++){
             BVar c_i = c.get(i);
@@ -223,7 +228,7 @@ public class BitBlastingNEW{
                 newcarry = SmtFactory.createConjunction(c_i, d_i);
             }
             else{
-                newcarry = SmtFactory.createDisjunction(SmtFactory.createConjunction(c_i,d_i), SmtFactory.createConjunction(carry, c_xor_d));
+                newcarry = SmtFactory.createDisjunction(SmtFactory.createConjunction(c_i,d_i), SmtFactory.createConjunction(carry, SmtFactory.createDisjunction(c_i, d_i)));
             }
             carry = problem1.createBooleanVariable();
             constraints.add(SmtFactory.createIff(carry, newcarry));
@@ -231,7 +236,7 @@ public class BitBlastingNEW{
         //BVar growVar = problem1.createBooleanVariable();
         result.add((BVar)carry);
         //constraints.add(SmtFactory.createIff(growVar, carry));
-        System.out.println ("constraints: " + constraints);
+        //System.out.println ("constraints: " + constraints);
         return result;        
     }
 
@@ -286,7 +291,7 @@ public class BitBlastingNEW{
                 //System.out.println ("borrow: " + SmtFactory.createIff(borrow, newBorrow));
             }
             else{
-                newBorrow = SmtFactory.createDisjunction(SmtFactory.createConjunction(SmtFactory.createNegation(a), b), SmtFactory.createConjunction(borrow, SmtFactory.createNegation(xor(a,b))));
+                newBorrow = SmtFactory.createDisjunction(SmtFactory.createConjunction(SmtFactory.createNegation(a), b), SmtFactory.createConjunction(borrow, xor(SmtFactory.createNegation(a),b)));
             }
             // Update the borrow for the next bit position
             borrow = problem1.createBooleanVariable();
@@ -328,7 +333,7 @@ public class BitBlastingNEW{
         for (int i = 0; i < bidWidth; i++) {
             BVar left = lhs.get(i);
             if (left.queryIndex()==2){
-                //System.out.println ("going to shift " + i);
+                System.out.println ("going to shift " + i);
                 ArrayList<BVar> shifted = new ArrayList<>();
                 ArrayList<BVar> rhscopy = new ArrayList<>(rhs); 
                 shifted = leftShift(rhscopy, i);
@@ -366,7 +371,7 @@ public class BitBlastingNEW{
         for (int i =0; i < bidWidth; i++){
             newvar.add(problem.createBooleanVariable());
         }
-        //System.out.println ("converted " + v + " to " + constraints);
+        System.out.println ("VAR converted " + v + " to " + newvar);
         //return SmtFactory.createConjunction(constraints);
         //final ArrayList<Constraint> end =new ArrayList<>(constraints);
         allVariables.set(v.queryIndex()-1, new ArrayList<>(newvar));
@@ -404,8 +409,8 @@ public class BitBlastingNEW{
 
     public Constraint xor (Constraint a, Constraint b){
         //System.out.println ("result of xor: " + SmtFactory.createConjunction(SmtFactory.createDisjunction(a,b).simplify(), SmtFactory.createNegation(SmtFactory.createConjunction(a,b).simplify()).simplify()).simplify());
-        return SmtFactory.createConjunction(SmtFactory.createDisjunction(a,b).simplify(), SmtFactory.createNegation(SmtFactory.createConjunction(a,b).simplify()).simplify()).simplify();
-        //return SmtFactory.createConjunction(SmtFactory.createDisjunction(a,b), SmtFactory.createNegation(SmtFactory.createConjunction(a,b)));
+        //return SmtFactory.createConjunction(SmtFactory.createDisjunction(a,b).simplify(), SmtFactory.createNegation(SmtFactory.createConjunction(a,b).simplify()).simplify()).simplify();
+        return SmtFactory.createConjunction(SmtFactory.createDisjunction(a,b), SmtFactory.createNegation(SmtFactory.createConjunction(a,b)));
 
     }
 
@@ -441,6 +446,27 @@ public class BitBlastingNEW{
         //System.out.println ("result is: " + SmtFactory.createDisjunction(convertList(subtract(leftSide, rightSide))));
         //return SmtFactory.createDisjunction(convertList(subtract(leftSide, rightSide)));
         return SmtFactory.createNegation(subtract(leftSide, rightSide));
+        // ArrayList<Constraint> children = new ArrayList<>();
+
+        // if (leftSide.size() < rightSide.size()){
+        //     leftSide = addFalses(leftSide, rightSide.size());
+        // }
+        // else if (rightSide.size() < leftSide.size()){
+        //     rightSide = addFalses(rightSide, leftSide.size());
+        // }
+        // System.out.println ("leftside: " + leftSide);
+        // System.out.println ("rightside: " + rightSide);
+        // for (int i =leftSide.size()-1; i >=0; i--){
+        //     ArrayList<Constraint> conjunction = new ArrayList<>();
+        //     conjunction.add(SmtFactory.createDisjunction(leftSide.get(i), SmtFactory.createNegation(rightSide.get(i))));
+        //     for (int j = i+1 ;j < leftSide.size(); j++){
+        //         //conjunction.add(SmtFactory.createNegation(xor(leftSide.get(j), rightSide.get(j))));
+        //         conjunction.add(SmtFactory.createDisjunction(SmtFactory.createConjunction(leftSide.get(j), rightSide.get(j)),SmtFactory.createConjunction(SmtFactory.createNegation(leftSide.get(j)), SmtFactory.createNegation(rightSide.get(j))) ));
+        //     }
+        //     children.add(SmtFactory.createConjunction(conjunction));
+        // }
+
+        // return SmtFactory.createDisjunction(children);
     }
 
     public Constraint addConstraints (Constraint endConjunction){
@@ -487,9 +513,16 @@ public class BitBlastingNEW{
         try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
             String firstLine = reader.readLine();
             if (firstLine.equals("SAT") || firstLine.equals("SATISFIABLE")) {
-                String valuation = reader.readLine();
-                //System.out.println (valuation);
-                ArrayList<String> numbersList = new ArrayList<>(Arrays.asList(valuation.split(" ")));
+                StringBuilder content = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    content.append(line).append(" ");
+                }
+
+                // Split by any whitespace (space, newline, tab, etc.)
+                ArrayList<String> numbersList = new ArrayList<>(Arrays.asList(content.toString().trim().split("\\s+")));
+                
+                System.out.println ("SIZE NUMBERLIST: " + numbersList.size());
                 System.out.println ("all:" + allVariables);
                 
                 for (int a =0; a < allVariables.size(); a++){
