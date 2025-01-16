@@ -45,28 +45,31 @@ public final class Disjunction extends Junction {
   }
 
   public Constraint simplify(){
+    //return this;
     final Constraint before = SmtFactory.createDisjunction(this.queryChildren());
     HashSet<Constraint> argsSet = new HashSet<>();
     for (int i = 0; i < _children.size(); i++) {
-      if (_children.get(i) instanceof Truth) {
+      if (_children.get(i) instanceof BVar b && b.queryIndex()==2) {
         //System.out.println ("returning true for " +this);
-        return SmtFactory.createTrue();
+        return b;
       }
-      if (!(_children.get(i) instanceof Falsehood)) {
+      if (!(_children.get(i) instanceof BVar b2 && b2.queryIndex()==1)) {
         argsSet.add(_children.get(i));
       }
     }
 
     if (argsSet.isEmpty()) {
-      //System.out.println ("returning true");
-      return SmtFactory.createFalse();
+      return new BVar(1);
     }
+    ArrayList<Constraint> list = new ArrayList<>(argsSet);
+    return SmtFactory.createDisjunction(list);
+  }
 
-    // Convert HashSet to ArrayList to maintain expected return type
-    List<Constraint> resultChildren = new ArrayList<>(argsSet);
-    //if (!((this.queryChildren()).equals(resultChildren))) System.out.println(before + " simplified is " + this);
-    //System.out.println ("simplified " + this);
-    return SmtFactory.createDisjunction(resultChildren);
+    // // Convert HashSet to ArrayList to maintain expected return type
+    // List<Constraint> resultChildren = new ArrayList<>(argsSet);
+    // //if (!((this.queryChildren()).equals(resultChildren))) System.out.println(before + " simplified is " + this);
+    // //System.out.println ("simplified " + this);
+    // return SmtFactory.createDisjunction(resultChildren);
     // ArrayList<Constraint> argsSimplified = new ArrayList<>();
     // final Constraint before = SmtFactory.createDisjunction(this.queryChildren());
     // // for (int i = 0; i < _children.size(); i++) {
@@ -113,5 +116,4 @@ public final class Disjunction extends Junction {
     // if (!(before.equals(this))) System.out.println (before + " simplified is " + this);
     // List<Constraint> resultChildren = new ArrayList<>(argsSimplified);
     // return SmtFactory.createDisjunction(resultChildren);
-  }
 }

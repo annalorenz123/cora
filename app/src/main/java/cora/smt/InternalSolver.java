@@ -39,17 +39,23 @@ public class InternalSolver implements SmtSolver {
    * Figure out if we should return YES(Valuation val), NO(), or MAYBE(String reason).
    */
   public SmtSolver.Answer checkSatisfiability(SmtProblem problem){
-    long startTime = System.nanoTime();
+    
     Constraint constraint = problem.queryCombinedConstraint();
     ArrayList<Constraint> children = getConstraints(constraint);
     System.out.println (children);
     ArrayList<IntegerExpression> expressions = getExpressions(children);
     System.out.println("expressions: " +expressions);
-  
+    long startTime = System.nanoTime();
     // BitBlastingFaster bb = new BitBlastingFaster();
     // SmtSolver.Answer answer = bb.checkSatisfiability(problem, expressions, false);
-    BitBlasting bb = new BitBlasting();
+    // BitBlasting bb = new BitBlasting();
+    // SmtSolver.Answer answer = bb.checkSatisfiability(problem, expressions, false);
+    BitBlastingNEW bb = new BitBlastingNEW();
     SmtSolver.Answer answer = bb.checkSatisfiability(problem, expressions, false);
+    // BitBlastingNEWFASTER bb = new BitBlastingNEWFASTER();
+    // SmtSolver.Answer answer = bb.checkSatisfiability(problem, expressions, false);
+    // BitBlastingNEWWithSimplify bb = new BitBlastingNEWWithSimplify();
+    // SmtSolver.Answer answer = bb.checkSatisfiability(problem, expressions, false);
     // if (answer instanceof SmtSolver.Answer.NO){
     //   throw new Error ("limited bitblasting gave no as answer");
     //   // BitBlasting bb2 = new BitBlasting();
@@ -62,17 +68,23 @@ public class InternalSolver implements SmtSolver {
     long duration = endTime - startTime; // Time in nanoseconds
     double executionTime = duration / 1_000_000.0;
 
-    File file = new File("executionTimesBitBlasting.txt");
+    File file = new File("bitblastingmeasurements.csv");
     try (BufferedWriter writer = new BufferedWriter(new FileWriter(file, true))) {
         // Append the line and a newline character
 
         writer.write(Double.toString(executionTime));
         ArrayList<Double> times = bb.getTimes();
+        double percentageBitblasting = times.get(0)/executionTime;
+        double percentageTT = times.get(1)/executionTime;
+        double percentageMinisat = times.get(2)/executionTime;
+        writer.write (", " + Double.toString(percentageBitblasting));
+        writer.write (", " + Double.toString(percentageTT));
+        writer.write (", " + Double.toString(percentageMinisat));
         writer.write (", " + Double.toString(times.get(0)));
         writer.write (", " + Double.toString(times.get(1)));
         writer.write (", " + Double.toString(times.get(2)));
         if (answer instanceof SmtSolver.Answer.NO){
-          writer.write(" NO");
+          writer.write(", NO");
         }
         writer.newLine();
         //System.out.println("Line added successfully to: " + filePath);

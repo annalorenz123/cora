@@ -1,8 +1,13 @@
 package cora.smt;
 import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class SatCaller {
-    public static void callMiniSat(String dimacsFilePath, String outputFilePath) {
+       public static void callMiniSat(String dimacsFilePath, String outputFilePath) {
         try {
             // Command to run MiniSat with the CNF formula file as argument and redirect output to a file
             String command = "minisat " + dimacsFilePath + " " + outputFilePath;
@@ -13,8 +18,25 @@ public class SatCaller {
             // Get the output from the process (for example, SAT/UNSAT status)
             BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
             String line;
-            while ((line = reader.readLine()) != null) {
-                System.out.println(line);  // Print SAT/UNSAT status
+            String cpuTime = null;  // Variable to hold the extracted CPU time
+            
+            // Prepare the file and writer to append CPU time
+            File file = new File("timeminisat.csv");
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(file, true))) {
+                while ((line = reader.readLine()) != null) {
+                    System.out.println(line);  // Print SAT/UNSAT status
+
+                    // Check for the line containing CPU time
+                    if (line.contains("CPU time")) {
+                        cpuTime = extractCpuTime(line); // Extract CPU time
+                        if (cpuTime != null) {
+                            writer.write(cpuTime); // Append CPU time to the file
+                            writer.newLine(); // Add a newline after each CPU time entry
+                        }
+                    }
+                }
+            } catch (IOException e) {
+                System.err.println("An error occurred while writing to the file: " + e.getMessage());
             }
             
             // Wait for the process to finish and capture the exit code
@@ -28,6 +50,22 @@ public class SatCaller {
             e.printStackTrace();
         }
     }
+    
+    private static String extractCpuTime(String line) {
+        // Updated regular expression to capture both integer and floating-point CPU time
+        String regex = "CPU time\\s+:\\s+([0-9]*\\.?[0-9]+)\\s+s";
+        Pattern pattern = Pattern.compile(regex);
+        Matcher matcher = pattern.matcher(line);
+
+        // If a match is found, return the CPU time formatted as requested
+        if (matcher.find()) {
+            String cpuTime = matcher.group(1);
+            return cpuTime + ", ";  // Return the CPU time with a comma and space
+        }
+
+        return null;  // Return null if no match is found
+    }
+
 
 
     public static void callKissat(String dimacsFilePath, String outputFilePath) {
@@ -57,6 +95,20 @@ public class SatCaller {
             }
             extractResultAndValuation("outputRobust.txt", "output.txt");
         } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+        }
+        try {
+            String filePath = "outputRobust.txt";
+            String processTime = CnfToDimacs.extractProcessTimeKissat(filePath);
+            File file = new File("timekissat.csv");
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(file, true))) {
+                // Append the line and a newline character
+                writer.write(processTime);
+            }
+            catch (IOException e) {
+                System.err.println("An error occurred while writing to the file: " + e.getMessage());
+            }
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }

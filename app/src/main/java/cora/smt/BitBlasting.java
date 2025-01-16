@@ -16,7 +16,7 @@ public class BitBlasting{
     double timeBitBlasting = 0;
     double timeTseitinTransformation = 0;
     double timeMiniSat = 0;
-    static int bidWidth = 5;
+    static int bidWidth = 4;
     ArrayList<Constraint> allCarrys = new ArrayList<>();
     static ArrayList<ArrayList<Constraint>> allVariables = new ArrayList<>();
     static ArrayList<BVar> originalVars = new ArrayList<>();
@@ -56,32 +56,55 @@ public class BitBlasting{
             args.add(end);
         }
         Constraint endConjunction = SmtFactory.createConjunction(args).simplify();
+        
+        
+        //System.out.println ("end: " + endConjunction);
+        if (endConjunction instanceof Truth) {
+            System.out.println ("formula is true");
+            
+            SmtSolver.Answer answer = new SmtSolver.Answer.YES(makeZeroValuation(allVariables, problem, new Valuation()));
+            long endTime = System.nanoTime();
+            timeBitBlasting = (endTime - startTime) / 1_000_000.0;
+            return answer;
+        }
         long endTime = System.nanoTime();
         timeBitBlasting = (endTime - startTime) / 1_000_000.0;
-        if (endConjunction instanceof Truth) return new SmtSolver.Answer.YES(makeZeroValuation(problem, new Valuation()));
         //System.out.println (endConjunction.toString().length());
         startTime = System.nanoTime();
+        int numberofobjectsbefore = ToCNF.countNumberOfObjects(endConjunction,0);
         endConjunction = TseitinTransformation.tseitinTransformation(endConjunction, problem);
         //endConjunction = AdjustedTTransformation.tseitinTransformation(endConjunction, problem);
+        //endConjunction = ToCNF.toCNF(problem,endConjunction);
+
+        int numberofobjectsafter = ToCNF.countNumberOfObjects(endConjunction,0);
+        
+        //return new SmtSolver.Answer.MAYBE("not implemented yet.");
+        //System.out.println ("number of objects before: " + numberofobjectsbefore + " and after: " + numberofobjectsafter);
+        //System.out.println ("BITWIDTH was: " + maxBidWidth);
+        double ratiott = (double)numberofobjectsafter / numberofobjectsbefore;
+        System.out.println ("ratio tt: " + Double.toString(ratiott));
         endTime = System.nanoTime();
         timeTseitinTransformation = (endTime - startTime) / 1_000_000.0;
-
-        //endConjunction = ToCNF.toCNF(problem,endConjunction);
-        //return new SmtSolver.Answer.MAYBE("not implemented yet.");
-        System.out.println ("BITWIDTH was: " + maxBidWidth);
+        startTime = System.nanoTime();
         try{
             CnfToDimacs.convertToDimacs(endConjunction, problem.numberBooleanVariables(), "output.cnf");
         }
         catch (IOException e){
             System.out.println (e);
         }
-        startTime = System.nanoTime();
-        MiniSatCaller.callMiniSat("output.cnf", "output.txt");
+        
+        SatCaller.callMiniSat("output.cnf", "output.txt");
+        
+        SmtSolver.Answer answer=  readOutput(problem, expressions, negative);
         endTime = System.nanoTime();
         timeMiniSat = (endTime - startTime) / 1_000_000.0;
-        return readOutput(problem, expressions, negative);
+        return answer;
         // ArrayList<Valuation> valuations = test(problem, endConjunction);
-        // if (valuations.size()==0) return new SmtSolver.Answer.NO();
+        // if (valuations.size()==0) {
+        //     endTime = System.nanoTime();
+        //     timeMiniSat = (endTime - startTime) / 1_000_000.0;
+        //     return new SmtSolver.Answer.NO();
+        // }
         // else {
         //     for (int f =0; f < valuations.size(); f++){
         //         Valuation v =  makeValuation (problem, valuations.get(f));
@@ -90,6 +113,8 @@ public class BitBlasting{
         //             throw new Error ("bitblasting gave answer that does not hold: " + v);
         //         }
         //     }
+        //     endTime = System.nanoTime();
+        //     timeMiniSat = (endTime - startTime) / 1_000_000.0;
         //     return new SmtSolver.Answer.YES(makeValuation (problem, valuations.get(0)));
 
         // }
@@ -122,6 +147,7 @@ public class BitBlasting{
 
     public ArrayList<Double> getTimes (){
         ArrayList<Double> list = new ArrayList<>();
+
         list.add(timeBitBlasting);
         list.add(timeTseitinTransformation);
         list.add(timeMiniSat);
@@ -270,9 +296,10 @@ public class BitBlasting{
     }
 
 
-    public static Valuation makeZeroValuation (SmtProblem problem, Valuation v){
+    public static Valuation makeZeroValuation (ArrayList<ArrayList<Constraint>> allVariables , SmtProblem problem, Valuation v){
         Valuation finalVal = new Valuation();
         //System.out.println (allVariables);
+        //System.out.println ("num variables: " + problem.numberIntegerVariables());
         for (int i = 1; i <= problem.numberIntegerVariables(); i++){
             if (allVariables.get(i-1).size() > bidWidth){
                 allVariables.set(i-1, removeFalses(allVariables.get(i-1)));
@@ -469,7 +496,7 @@ public class BitBlasting{
     }
 
     public ArrayList<Constraint> multiply(ArrayList<Constraint> lhs, ArrayList<Constraint> rhs) {
-        //System.out.println ("going to multiply " + lhs + " and " + rhs);
+        //System.out.println ("going to multiply " + lhs + " and " + rhs + " size before: " + rhs.size());
 
         ArrayList<Constraint> result = new ArrayList<>();
 
@@ -490,7 +517,7 @@ public class BitBlasting{
                 //System.out.println ("result is: " + result);
             }
         }
-        //System.out.println ("final result is: " + result);
+        //System.out.println ("final result is: " + result + " with size: " + result.size());
         return result; // This represents the product
         //return new ArrayList<>(result.subList(0, bidWidth));
 
@@ -681,7 +708,7 @@ public class BitBlasting{
                 trueValuations.add(val);
             }
         }
-        System.out.println (trueValuations);
+        //System.out.println (trueValuations);
         // if (trueValuations.size() <= 5 ) System.out.println (trueValuations);
         // else {
         //     for (int i =0; i < 5; i++) System.out.println (trueValuations.get(i));

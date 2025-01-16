@@ -46,28 +46,47 @@ public final class Conjunction extends Junction {
   }
 
   public Constraint simplify(){
-    final Constraint before = SmtFactory.createConjunction(this.queryChildren());
+    //return this;
+    final Constraint before = SmtFactory.createDisjunction(this.queryChildren());
     HashSet<Constraint> argsSet = new HashSet<>();
     for (int i = 0; i < _children.size(); i++) {
-      if (_children.get(i) instanceof Falsehood) {
-        //System.out.println ("returning false for " + this);
-        return SmtFactory.createFalse();
+      if (_children.get(i) instanceof BVar b && b.queryIndex()==1) {
+        //System.out.println ("returning true for " +this);
+        return b;
       }
-      if (!(_children.get(i) instanceof Truth)) {
+      if (!(_children.get(i) instanceof BVar b2 && b2.queryIndex()==2)) {
         argsSet.add(_children.get(i));
       }
     }
 
     if (argsSet.isEmpty()) {
-      //System.out.println ("returning true");
-      return SmtFactory.createTrue();
+      return new BVar(2);
     }
+    ArrayList<Constraint> list = new ArrayList<>(argsSet);
+    return SmtFactory.createConjunction(list);
+  }
+    // final Constraint before = SmtFactory.createConjunction(this.queryChildren());
+    // HashSet<Constraint> argsSet = new HashSet<>();
+    // for (int i = 0; i < _children.size(); i++) {
+    //   if (_children.get(i) instanceof BVar b && b.queryName().contains("false")) {
+    //     //System.out.println ("returning false for " + this);
+    //     return b;
+    //   }
+    //   if (!(_children.get(i) instanceof BVar b2 && b2.queryName().contains("true") ||(_children.get(i) instanceof Truth))) {
+    //     argsSet.add(_children.get(i));
+    //   }
+    // }
 
-    // Convert HashSet to ArrayList to maintain expected return type
-    List<Constraint> resultChildren = new ArrayList<>(argsSet);
-    //if (!((this.queryChildren()).equals(resultChildren))) System.out.println(before + " simplified is " + this);
-    //System.out.println ("simplified " + this);
-    return SmtFactory.createConjunction(resultChildren);
+    // if (argsSet.isEmpty()) {
+    //   //System.out.println ("returning true");
+    //   return SmtFactory.createTrue();
+    // }
+
+    // // Convert HashSet to ArrayList to maintain expected return type
+    // List<Constraint> resultChildren = new ArrayList<>(argsSet);
+    // //if (!((this.queryChildren()).equals(resultChildren))) System.out.println(before + " simplified is " + this);
+    // //System.out.println ("simplified " + this);
+    // return SmtFactory.createConjunction(resultChildren);
     // final Constraint before = SmtFactory.createConjunction(this.queryChildren());
     // //System.out.println ("simplifying: " + this);
 
@@ -116,6 +135,5 @@ public final class Conjunction extends Junction {
       
     //}
     //return this;
-  }
 }
 

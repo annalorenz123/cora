@@ -29,19 +29,21 @@ public class SimplexMethod {
     problems.add(Qexpressions);
     //Iterator<ArrayList<QExpression>> it = problems.iterator();
     boolean firstTime = true;
-    int iterations = 0;
+    //int iterations = 0;
     while (problems.size() > 0){
-      iterations++;
+      //iterations++;
 
-      System.out.println ("problems: ");
+      //System.out.println ("problems: ");
       Iterator<ArrayList<QExpression>> it = problems.iterator();
       while (it.hasNext()){
         System.out.println (it.next());
       }
       it = problems.iterator();
       final ArrayList<QExpression> currentProblem = new ArrayList<>(it.next());
-      
-      System.out.println ("CURRENT PROBLEM: " + currentProblem);
+      // while (it.hasNext()){
+      //   currentProblem = new ArrayList<>(it.next());
+      // }
+      //System.out.println ("CURRENT PROBLEM: " + currentProblem);
       it = problems.iterator();
       final ArrayList<QExpression> originalProblem = new ArrayList<>(it.next());
       ArrayList<QValue> solution = getSolution(problem.numberIntegerVariables(), currentProblem);
@@ -53,11 +55,6 @@ public class SimplexMethod {
       }
       if (answer instanceof SmtSolver.Answer.NO){
         if (problems.size()==0){
-          // if (!negative){
-          //   ArrayList<IntegerExpression> newexpressions = convertToNegative(problem, expressions);
-          //   System.out.println ("TRYING NEGATIVE: " + newexpressions);
-          //   return checkSatisfiability(problem, newexpressions, true);
-          // }
           return answer;
         }
         else System.out.println ("removed first problem but we have more options");
@@ -81,8 +78,10 @@ public class SimplexMethod {
         }
         else {
           ArrayList<ArrayList<QExpression>> adjustedProblems = adjustProblems(convertToQExpressions(expressions),originalProblem);
-          if (adjustedProblems.isEmpty()) adjustedProblems = getNewProblems(originalProblem, solution);
-          //answer = tryExactValue(convertToQExpressions(expressions),currentProblem);
+          if (adjustedProblems.isEmpty()) {
+            //System.out.println ("adjusted problems empty");
+            adjustedProblems = getNewProblems(originalProblem, solution);
+          }
           problems.addAll(adjustedProblems);
           //problems.addAll(getNewProblems(convertToQExpressions(expressions), solution)); 
           problems = new HashSet<>(removeDuplicates(new ArrayList<>(problems)));
@@ -163,6 +162,7 @@ public class SimplexMethod {
     //System.out.println ("current problem: " + currentProblem);
     ArrayList<ArrayList<QExpression>> adjustedProblems = new ArrayList<>();
     if (currentProblem.get(currentProblem.size()-1).equals(currentProblem.get(currentProblem.size()-2).negate())){
+      //System.out.println ("no adjusted problems");
       return adjustedProblems; 
     }
     currentProblem.add(currentProblem.get(currentProblem.size()-1).negate());
@@ -181,7 +181,7 @@ public class SimplexMethod {
       throw new Error(currentProblem.get(currentProblem.size()-1) + " should only contain one variable: ");
     }
     if (getCount(variable, currentProblem.get(currentProblem.size()-1)).queryNumerator().compareTo(BigInteger.valueOf(0)) < 0){
-      currentProblem.set(currentProblem.size()-1, new QAddition (currentProblem.get(currentProblem.size()-1), new QValue(BigInteger.valueOf(1),BigInteger.valueOf(1))).simplify());
+      currentProblem.set(currentProblem.size()-1, new QAddition (currentProblem.get(currentProblem.size()-1), new QValue(BigInteger.valueOf(-1),BigInteger.valueOf(1))).simplify());
     }
     else if (getCount(variable, currentProblem.get(currentProblem.size()-1)).queryNumerator().compareTo(BigInteger.valueOf(0)) > 0){
       currentProblem.set(currentProblem.size()-1, new QAddition (currentProblem.get(currentProblem.size()-1), new QValue(BigInteger.valueOf(-1),BigInteger.valueOf(1))).simplify());
@@ -229,14 +229,14 @@ public class SimplexMethod {
 
 
   public SmtSolver.Answer checkSolution (ArrayList<QValue> solution, int numberIntegerVariables, ArrayList<IntegerExpression> expressions, boolean negative){
-    System.out.println ("checking solution: " + solution);
-    System.out.println (basis);
+    //System.out.println ("checking solution: " + solution);
+    //System.out.println (basis);
     if (zLargerThanZero(solution)){
-      System.out.println ("z is larger than zero");
+      //System.out.println ("z is larger than zero");
       return new SmtSolver.Answer.NO();
     }
     if (!integerSolution(solution)){
-      System.out.println ("there is no integer solution");
+      //System.out.println ("there is no integer solution");
       return new SmtSolver.Answer.MAYBE("no integer solution");
 
       
@@ -244,10 +244,10 @@ public class SimplexMethod {
     Valuation val = makeValuation(numberIntegerVariables, solution, negative); 
     if (extraCheck(val, expressions)){
       //if (negative) return adjustedValuation(numberIntegerVariables, val);
-      System.out.println ("valuation: " + val);
+      //System.out.println ("valuation: " + val);
       return new SmtSolver.Answer.YES(val);
     }
-    System.out.println ("SOMETHING WENT WRONG, SIMPLEX RETURNED SOLUTION THAT DOES NOT HOLD");
+    //System.out.println ("SOMETHING WENT WRONG, SIMPLEX RETURNED SOLUTION THAT DOES NOT HOLD");
     return new SmtSolver.Answer.MAYBE("something went wrong in simplex method.");
   }
 
@@ -287,7 +287,7 @@ public class SimplexMethod {
       // Add a copy of Qexpressions with constraintDown
       newProblems.add(new ArrayList<>(Qexpressions));
     }
-
+    System.out.println (newProblems);
     return newProblems;
 
   }
@@ -386,7 +386,7 @@ public class SimplexMethod {
     QVar slackVariable = new QVar(numberIntegerVariables + Qexpressions.size()+1, "z");
     basis.clear();
     Qexpressions = addSlackVariables(slackVariable, numberIntegerVariables, Qexpressions);
-    System.out.println (Qexpressions);
+    //System.out.println (Qexpressions);
     Qexpressions = simplexMethod(numberIntegerVariables, Qexpressions, slackVariable);
     //System.out.println ("we are done, no positive factors in obj func: " + Qexpressions.get(0));
     //System.out.println ("basis: " + basis);
@@ -504,7 +504,7 @@ public class SimplexMethod {
       constants.clear();
       index++;
       if (index >= expressions.size()){
-        System.out.println ("UNBOUNDED");
+        //System.out.println ("UNBOUNDED");
         return true;
 
       }

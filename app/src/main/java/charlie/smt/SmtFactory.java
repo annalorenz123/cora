@@ -170,6 +170,8 @@ public class SmtFactory {
     }
     if (args.size() == 0) return new Falsehood();
     if (args.size() == 1) return args.get(0);
+
+
     return new Conjunction(args);
   }
 
@@ -188,6 +190,8 @@ public class SmtFactory {
     }
     if (args.size() == 0) return new Falsehood();
     if (args.size() == 1) return args.get(0);
+
+
     return new Disjunction(args);
   }
 

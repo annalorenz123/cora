@@ -17,7 +17,7 @@ public class BitBlastingFaster{
     double timeTseitinTransformation = 0;
     double timeMiniSat = 0;
 
-    static int bidWidth = 5;
+    static int bidWidth = 20;
     ArrayList<Constraint> allCarrys = new ArrayList<>();
     static ArrayList<ArrayList<Constraint>> allVariables = new ArrayList<>();
     static ArrayList<BVar> originalVars = new ArrayList<>();
@@ -67,33 +67,41 @@ public class BitBlastingFaster{
                 allCarrys.clear();
             }
             Constraint endConjunction = SmtFactory.createConjunction(args).simplify();
+            
+            
+            System.out.println (allVariables);
+            if (endConjunction instanceof Truth) {
+                System.out.println ("true");
+                return new SmtSolver.Answer.YES(BitBlasting.makeZeroValuation(allVariables,problem, new Valuation()));
+            }
             long endTime = System.nanoTime();
             timeBitBlasting = (endTime - startTime) / 1_000_000.0;
-            if (endConjunction instanceof Truth) return new SmtSolver.Answer.YES(BitBlasting.makeZeroValuation(problem, new Valuation()));
-
             //System.out.println (endConjunction);
             //System.out.println (endConjunction.toString().length());
-            //endConjunction = AdjustedTTransformation.tseitinTransformation(endConjunction, problem);
             startTime = System.nanoTime();
+            //endConjunction = AdjustedTTransformation.tseitinTransformation(endConjunction, problem);
+            
             endConjunction = TseitinTransformation.tseitinTransformation(endConjunction, problem);
             endTime = System.nanoTime();
-            timeTseitinTransformation = (endTime - startTime) / 1_000_000.0;
+            timeTseitinTransformation =(endTime - startTime) / 1_000_000.0;
+            //timeTseitinTransformation = (endTime - startTime) / 1_000_000.0;
             //endConjunction = ToCNF.toCNF(problem, endConjunction);
-            System.out.println ("end conjunction num vars: " + problem.numberBooleanVariables());
+            //System.out.println ("end conjunction num vars: " + problem.numberBooleanVariables());
             //System.out.println (endConjunction);
             //return new SmtSolver.Answer.MAYBE("not implemented yet.");
-            
+            startTime = System.nanoTime();
             try{
                 CnfToDimacs.convertToDimacs(endConjunction, problem.numberBooleanVariables(), "output.cnf");
             }
             catch (IOException e){
                 System.out.println (e);
             }
-            startTime = System.nanoTime();
-            MiniSatCaller.callMiniSat("output.cnf", "output.txt");
+            
+            SatCaller.callMiniSat("output.cnf", "output.txt");
+            
+            SmtSolver.Answer answer = readOutput(problem, expressions, negative);
             endTime = System.nanoTime();
             timeMiniSat = (endTime - startTime) / 1_000_000.0;
-            SmtSolver.Answer answer = readOutput(problem, expressions, negative);
             if (answer instanceof SmtSolver.Answer.YES) return answer;
             bidWidth++;
         }
@@ -188,24 +196,24 @@ public class BitBlastingFaster{
                 String valuation = reader.readLine();
                 //System.out.println (valuation);
                 ArrayList<String> numbersList = new ArrayList<>(Arrays.asList(valuation.split(" ")));
-                System.out.println(problem.numberIntegerVariables());
+                //System.out.println(problem.numberIntegerVariables());
                 if (!negative){
                     for (int i =1; i <= problem.numberIntegerVariables(); i++){
-                        System.out.println ("at variable " + i);
+                        //System.out.println ("at variable " + i);
                         ArrayList<Constraint> binary = new ArrayList<>();
                         for (int j =1; j <= bidWidth; j++){
-                            System.out.println ("looking at: " + ((i-1)*bidWidth+(j-1)));
+                            //System.out.println ("looking at: " + ((i-1)*bidWidth+(j-1)));
                             if (numbersList.get((i-1)*bidWidth+(j-1)).startsWith("-")){
-                                System.out.println("setting " + ((i-1)*bidWidth+(j-1)) + " to false");
+                                //System.out.println("setting " + ((i-1)*bidWidth+(j-1)) + " to false");
                                 binary.add(SmtFactory.createFalse());
                             }
                             else {
                                 binary.add(SmtFactory.createTrue());
-                                System.out.println("setting " + ((i-1)*bidWidth+(j-1)) + " to true");
+                                //System.out.println("setting " + ((i-1)*bidWidth+(j-1)) + " to true");
                             }
                         }
                         
-                        System.out.println (allVariables);
+                        //System.out.println (allVariables);
                         
                         for (int a =0; a < allVariables.size(); a++){
                             while (allVariables.get(a).isEmpty()) {
@@ -214,7 +222,7 @@ public class BitBlastingFaster{
                             }
                             int index = ((BVar)(removeFalses(allVariables.get(a))).get(0)).queryIndex();
                             if (((i-1)*bidWidth+1) == index){
-                                System.out.println ("setting variable "+ (a+1) + " with starting index " + index);
+                                //System.out.println ("setting variable "+ (a+1) + " with starting index " + index);
                                 v.setInt(a+1, convertBinToDec(binary));
                                 break;
                             }
@@ -505,7 +513,8 @@ public class BitBlastingFaster{
     }
 
     public ArrayList<Constraint> multiply(ArrayList<Constraint> lhs, ArrayList<Constraint> rhs) {
-        //System.out.println ("going to multiply " + lhs + " and " + rhs);
+        //System.out.println ("going to multiply " + lhs + " and " + rhs + " bitwidth before: " + rhs.size());
+        
 
         ArrayList<Constraint> result = new ArrayList<>();
 
@@ -526,7 +535,7 @@ public class BitBlastingFaster{
                 //System.out.println ("result is: " + result);
             }
         }
-        //System.out.println ("final result is: " + result);
+        //System.out.println ("final result is: " + result + " with size: " + result.size());
         return result; // This represents the product
         //return new ArrayList<>(result.subList(0, bidWidth));
 
@@ -823,7 +832,8 @@ public class BitBlastingFaster{
         while ((1 << exponent) < number) {
             exponent++;
         }
-        return exponent + 1; // Add 1 to align with your example
+        System.out.println ("exponent for "+number+ " is " + (exponent));
+        return exponent+1; // Add 1 to align with your example
     }
 
     public static int getConstantBidWidth(ArrayList<IntegerExpression> c){
@@ -846,6 +856,7 @@ public class BitBlastingFaster{
                 }
             }
         }
+        System.out.println ("bidwidth for "+ c + " is " + maxvalue);
         return findExponent(maxvalue);
     }
   

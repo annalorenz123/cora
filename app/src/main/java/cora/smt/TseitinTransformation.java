@@ -7,29 +7,30 @@ public class TseitinTransformation{
 
      public static Constraint tseitinTransformation (Constraint formula, SmtProblem problem){
         if (TseitinTransformationOLD.inCNF(formula)) {
+            System.out.println ("in cnf");
             return formula;
         }
         BVar full = problem.createBooleanVariable();
         ArrayList<Constraint> biimplications = replaceSubFormulaForVar(problem, full, formula);
-        System.out.println ("subformulas made");
-        System.out.println ("full: " + full);
+        //System.out.println ("subformulas made");
+        //System.out.println ("full: " + full);
         //biImplications = biImplicationsToImplications(biImplications);
-        System.out.println (biimplications);
-        System.out.println ("length before converted nots: " + ToCNF.countNumberOfObjects(SmtFactory.createConjunction(biimplications), 0));
+        //System.out.println (biimplications);
+        //System.out.println ("length before converted nots: " + ToCNF.countNumberOfObjects(SmtFactory.createConjunction(biimplications), 0));
         for (int i =0; i < biimplications.size(); i++){
             if (!(TseitinTransformationOLD.inCNF(biimplications.get(i)))){
                 biimplications.set(i, ToCNF.convertNots(biimplications.get(i)));
             }
         }
-        System.out.println ("length after converted nots: " + ToCNF.countNumberOfObjects(SmtFactory.createConjunction(biimplications), 0));
+        //System.out.println ("length after converted nots: " + ToCNF.countNumberOfObjects(SmtFactory.createConjunction(biimplications), 0));
         for (int i =0; i < biimplications.size(); i++){
             if (!(TseitinTransformationOLD.inCNF(biimplications.get(i)))){
                 biimplications.set(i, ToCNF.distributiveLaw(biimplications.get(i)));
             }
         }
-        System.out.println ("length after dislaw: " + ToCNF.countNumberOfObjects(SmtFactory.createConjunction(biimplications), 0));
+        //System.out.println ("length after dislaw: " + ToCNF.countNumberOfObjects(SmtFactory.createConjunction(biimplications), 0));
 
-        System.out.println ("in cnf");
+        //System.out.println ("in cnf");
         //System.out.println (biImplications);
         for (int i =0; i < biimplications.size(); i++){
             if (!TseitinTransformationOLD.inCNF(biimplications.get(i))){
@@ -39,8 +40,8 @@ public class TseitinTransformation{
         }
         biimplications.add(full);
         if (!(full instanceof BVar)) throw new Error ("full not instance of bvar: " + full);
-        System.out.println ("added: " + full);
-        System.out.println ("end: " + SmtFactory.createConjunction(biimplications));
+        //System.out.println ("added: " + full);
+        //System.out.println ("end: " + SmtFactory.createConjunction(biimplications));
         return SmtFactory.createConjunction(biimplications);
         //return formula;
     }
@@ -133,7 +134,7 @@ public class TseitinTransformation{
     }
 
     public static ArrayList<Constraint> simplify (ArrayList<Constraint> list){
-        System.out.println (list);
+        //System.out.println (list);
         for (int i =0; i < list.size(); i+=2){
             Constraint c = ((Disjunction)list.get(i)).queryChild(2);
             for (int j =0; j < list.size(); j+=2){

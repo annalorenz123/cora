@@ -9,19 +9,19 @@ public class AdjustedTTransformation{
         if (TseitinTransformationOLD.inCNF(formula)) {
             return formula;
         }
-        System.out.println ("going to convert nots");
+        //System.out.println ("going to convert nots");
         formula = ToCNF.convertNots(formula);
         if (TseitinTransformationOLD.inCNF(formula)) {
             return formula;
         }
-        System.out.println ("converted nots");
-        System.out.println (formula);
+        //System.out.println ("converted nots");
+        //System.out.println (formula);
         //return formula;
         // System.out.println ("not in cnf: " + formula);
         BVar full = problem.createBooleanVariable();
         ArrayList<Constraint> implications = replaceSubFormulaForVar(problem, full , formula);
-        System.out.println ("subformulas made");
-        System.out.println (implications);
+        //System.out.println ("subformulas made");
+        //System.out.println (implications);
         // ArrayList<Constraint> biImplications = new ArrayList<>();
         // for (Constraint f : subFormulas){
         //     biImplications.add(SmtFactory.createImplication(problem.createBooleanVariable(), f));
@@ -30,7 +30,7 @@ public class AdjustedTTransformation{
         // biImplications = replaceFormulaForVariable(biImplications);
         // System.out.println ("after replacing ");
         //final Constraint full = ((Not)(((Disjunction)implications.get(implications.size()-1)).queryChild(1))).queryChild();
-        System.out.println ("full: " + full);
+        //System.out.println ("full: " + full);
         //biImplications = biImplicationsToImplications(biImplications);
         //System.out.println (biImplications);
         for (int i =0; i < implications.size(); i++){
@@ -42,7 +42,7 @@ public class AdjustedTTransformation{
             }
         }
 
-        System.out.println ("in cnf");
+        //System.out.println ("in cnf");
         //System.out.println (biImplications);
         for (int i =0; i < implications.size(); i++){
             if (!TseitinTransformationOLD.inCNF(implications.get(i))){
@@ -51,8 +51,8 @@ public class AdjustedTTransformation{
             }
         }
         implications.add(full);
-        System.out.println ("added: " + full);
-        // System.out.println ("end: " + SmtFactory.createConjunction(biImplications));
+        //System.out.println ("added: " + full);
+        //System.out.println ("end: " + SmtFactory.createConjunction(implications));
         return SmtFactory.createConjunction(implications);
         //return formula;
     }
@@ -99,7 +99,7 @@ public class AdjustedTTransformation{
                     biImplications.set(i, SmtFactory.createIff(((Iff)biImplications.get(i)).queryLeft(), SmtFactory.createDisjunction(newargs2)));
                     break;
                 case Not n:
-                    if (n.queryChild() instanceof Falsehood) biImplications.set(i, SmtFactory.createIff(((Iff)biImplications.get(i)).queryLeft(), SmtFactory.createTrue()));
+                    //if (n.queryChild() instanceof Falsehood) biImplications.set(i, SmtFactory.createIff(((Iff)biImplications.get(i)).queryLeft(), SmtFactory.createTrue()));
                     for (int j = i+1; j < biImplications.size(); j++){
                         if (n.queryChild().equals(((Iff)biImplications.get(j)).queryRight())){
                             biImplications.set(i, SmtFactory.createIff(((Iff)biImplications.get(i)).queryLeft(), SmtFactory.createNegation(((Iff)biImplications.get(j)).queryLeft())));
@@ -225,6 +225,7 @@ public class AdjustedTTransformation{
             //     list.add(SmtFactory.createImplication(previousVar, cons));
             // }
             list.add(SmtFactory.createImplication(previousVar, SmtFactory.createConjunction(args)));
+            //System.out.println(list);
 
         } 
         else if (c instanceof Disjunction d){
