@@ -29,11 +29,11 @@ public class SimplexMethod {
     problems.add(Qexpressions);
     //Iterator<ArrayList<QExpression>> it = problems.iterator();
     boolean firstTime = true;
-    //int iterations = 0;
+    int iterations = 0;
     while (problems.size() > 0){
-      //iterations++;
+      iterations++;
 
-      //System.out.println ("problems: ");
+      System.out.println ("problems: ");
       Iterator<ArrayList<QExpression>> it = problems.iterator();
       while (it.hasNext()){
         System.out.println (it.next());
@@ -43,14 +43,14 @@ public class SimplexMethod {
       // while (it.hasNext()){
       //   currentProblem = new ArrayList<>(it.next());
       // }
-      //System.out.println ("CURRENT PROBLEM: " + currentProblem);
+      System.out.println ("CURRENT PROBLEM: " + currentProblem);
       it = problems.iterator();
       final ArrayList<QExpression> originalProblem = new ArrayList<>(it.next());
       ArrayList<QValue> solution = getSolution(problem.numberIntegerVariables(), currentProblem);
       SmtSolver.Answer answer = checkSolution(solution, problem.numberIntegerVariables(), expressions, negative);
       problems.remove(originalProblem);
-      
       if (answer instanceof SmtSolver.Answer.YES) {
+        System.out.println ("Iterations: " + iterations);
         return answer;
       }
       if (answer instanceof SmtSolver.Answer.NO){
@@ -60,6 +60,7 @@ public class SimplexMethod {
         else System.out.println ("removed first problem but we have more options");
       }
       if (answer instanceof SmtSolver.Answer.MAYBE){
+        
         Qexpressions = convertToQExpressions(expressions);
         QValuation qVal = makeQValuation(problem.numberIntegerVariables(), solution);
         //System.out.println ("qvaluation: " + qVal);
@@ -69,7 +70,10 @@ public class SimplexMethod {
 
         for (QValuation q : roundedValuations){
           Valuation v = convertQValToVal(q, problem.numberIntegerVariables());
-          if (extraCheck(v, expressions)) return new SmtSolver.Answer.YES(v);
+          if (extraCheck(v, expressions)) {
+            System.out.println ("Iterations: " + iterations);
+            return new SmtSolver.Answer.YES(v);
+          }
         }
         System.out.println ("there is no integer solution so we add an expression");
         if (firstTime) {
@@ -77,6 +81,7 @@ public class SimplexMethod {
           firstTime = false;
         }
         else {
+          
           ArrayList<ArrayList<QExpression>> adjustedProblems = adjustProblems(convertToQExpressions(expressions),originalProblem);
           if (adjustedProblems.isEmpty()) {
             //System.out.println ("adjusted problems empty");
@@ -229,7 +234,7 @@ public class SimplexMethod {
 
 
   public SmtSolver.Answer checkSolution (ArrayList<QValue> solution, int numberIntegerVariables, ArrayList<IntegerExpression> expressions, boolean negative){
-    //System.out.println ("checking solution: " + solution);
+    System.out.println ("checking solution: " + solution);
     //System.out.println (basis);
     if (zLargerThanZero(solution)){
       //System.out.println ("z is larger than zero");
@@ -261,11 +266,18 @@ public class SimplexMethod {
     return new SmtSolver.Answer.YES(newVal);
   }
 
+  public boolean isSlackVar (QVar var){
+    return var.queryName().contains("y");
+  }
+
   public ArrayList<ArrayList<QExpression>> getNewProblems (ArrayList<QExpression> Qexpressions, ArrayList<QValue> solution){
     int index = 0;
-    while (solution.get(index).queryDenominator().equals(BigInteger.valueOf(1))){
+    ArrayList<ArrayList<QExpression>> newProblems = new ArrayList<>();
+    while (solution.get(index).queryDenominator().equals(BigInteger.valueOf(1)) || isSlackVar(basis.get(index))){
       index++;
+      if (index == solution.size() || index == basis.size()) return newProblems;
     }
+
     QValue fraction = solution.get(index);
     double fractionDouble = fraction.queryNumerator().divide(fraction.queryDenominator()).doubleValue();
     int roundedUp = (int) Math.ceil(fractionDouble)+1;
@@ -276,7 +288,7 @@ public class SimplexMethod {
     QExpression constraintDown = new QAddition(new QValue(BigInteger.valueOf(roundedDown), BigInteger.valueOf(1)), new QMult(new QValue(BigInteger.valueOf(-1),BigInteger.valueOf(1)), basis.get(index)));
 
     Qexpressions.add(constraintUp);
-    ArrayList<ArrayList<QExpression>> newProblems = new ArrayList<>();
+    
     newProblems.add(new ArrayList<>(Qexpressions));
     if (roundedDown >= 0){
           
@@ -287,7 +299,7 @@ public class SimplexMethod {
       // Add a copy of Qexpressions with constraintDown
       newProblems.add(new ArrayList<>(Qexpressions));
     }
-    System.out.println (newProblems);
+    //System.out.println (newProblems);
     return newProblems;
 
   }
@@ -330,6 +342,7 @@ public class SimplexMethod {
 
       } 
     }
+    //System.out.println ("solution " + constantsFinal);
     return constantsFinal;
   }
 
@@ -434,7 +447,7 @@ public class SimplexMethod {
           Qexpressions = pivot(swap, newExpr, Qexpressions);
           Qexpressions = removingZeroExpressions(Qexpressions);
 
-          ArrayList<QValue> solution = collectSolution(Qexpressions);
+          //ArrayList<QValue> solution = collectSolution(Qexpressions);
           //System.out.println ("basis: " + basis);
           //System.out.println ("values of basis variables: " + solution);
           //System.out.println("removed zero expressions: " + Qexpressions);
@@ -585,6 +598,7 @@ public class SimplexMethod {
     list.add(0.0);
     list.add(0.0);
     list.add(0.0);
+    list.add(0.0);
     return list;
   }
 
@@ -689,18 +703,17 @@ public class SimplexMethod {
       //System.out.println ("result is " + newExpression);
       if (newExpression instanceof QValue q && i != 0){
         //System.out.println ("found qvalue in expressions: " + q + "removing basis value: " + basis.get(i-1));
-        System.out.println ("removing basis value: " + (i-1) + " from basis " + basis);
+        //System.out.println ("removing basis value: " + (i-1) + " from basis " + basis);
         int basisIndex = i-1;
         while (basisIndex >= basis.size() && basisIndex > 0) basisIndex--;
+        //System.out.println ("removing: " + basisIndex);
         basis.remove(basisIndex);
       }
       expressions.set(i,newExpression);
     }
-    //System.out.println ("done replacing");
     newExpr = addTerms(newExpr, new QMult(new QValue(BigInteger.valueOf(-1),BigInteger.valueOf(1)), swap)).simplify();
     expressions.add(1, newExpr);
     basis.add(0, swap);
-    //System.out.println("basis at the end: " + basis);
     //System.out.println (expressions);
     //if (basis.size() != expressions.size()-1) throw new Error ("basis and expr not of same length");
     return expressions;
