@@ -42,28 +42,12 @@ public class InternalSolver implements SmtSolver {
     
     Constraint constraint = problem.queryCombinedConstraint();
     ArrayList<Constraint> children = getConstraints(constraint);
-    System.out.println (children);
     ArrayList<IntegerExpression> expressions = getExpressions(children);
-    System.out.println("expressions: " +expressions);
     long startTime = System.nanoTime();
-    // BitBlastingFaster bb = new BitBlastingFaster();
-    // SmtSolver.Answer answer = bb.checkSatisfiability(problem, expressions, false);
-    // BitBlasting bb = new BitBlasting();
-    // SmtSolver.Answer answer = bb.checkSatisfiability(problem, expressions, false);
-    BitBlastingNEW bb = new BitBlastingNEW();
+    //SimplexMethod bb = new SimplexMethod();
+    BitBlasting bb = new BitBlasting();
+    //BitBlastingLimitedBitWidth bb = new BitBlastingLimitedBitWidth();
     SmtSolver.Answer answer = bb.checkSatisfiability(problem, expressions, false);
-    // BitBlastingNEWFASTER bb = new BitBlastingNEWFASTER();
-    // SmtSolver.Answer answer = bb.checkSatisfiability(problem, expressions, false);
-    // BitBlastingNEWWithSimplify bb = new BitBlastingNEWWithSimplify();
-    // SmtSolver.Answer answer = bb.checkSatisfiability(problem, expressions, false);
-    // if (answer instanceof SmtSolver.Answer.NO){
-    //   throw new Error ("limited bitblasting gave no as answer");
-    //   // BitBlasting bb2 = new BitBlasting();
-    //   // answer = bb2.checkSatisfiability(problem, expressions, false);
-    // }
-    // SimplexMethod bb = new SimplexMethod();
-    // SmtSolver.Answer answer = bb.checkSatisfiability(problem, expressions, false);
-
     long endTime = System.nanoTime();
     long duration = endTime - startTime; // Time in nanoseconds
     double executionTime = duration / 1_000_000.0;
@@ -76,13 +60,16 @@ public class InternalSolver implements SmtSolver {
         ArrayList<Double> times = bb.getTimes();
         double percentageBitblasting = times.get(0)/executionTime;
         double percentageTT = times.get(1)/executionTime;
-        double percentageMinisat = times.get(2)/executionTime;
+        double percentageDIMACS = times.get(2)/executionTime;
+        double percentageMinisat = times.get(3)/executionTime;
         writer.write (", " + Double.toString(percentageBitblasting));
         writer.write (", " + Double.toString(percentageTT));
+        writer.write (", " + Double.toString(percentageDIMACS));
         writer.write (", " + Double.toString(percentageMinisat));
         writer.write (", " + Double.toString(times.get(0)));
         writer.write (", " + Double.toString(times.get(1)));
         writer.write (", " + Double.toString(times.get(2)));
+        writer.write (", " + Double.toString(times.get(3)));
         if (answer instanceof SmtSolver.Answer.NO){
           writer.write(", NO");
         }
@@ -91,18 +78,7 @@ public class InternalSolver implements SmtSolver {
     } catch (IOException e) {
         System.err.println("An error occurred while writing to the file: " + e.getMessage());
     }
-
     return answer;
-    
-    //-4/3 * [i2] + -4/3 + [i1] + 4/3 * [i2] + 1/3 * [y4] + -1/3 * [y5]
-    // QValue q1 = new QValue(-4,3);
-    // System.out.println (q1.simplify());
-    // QVar q = new QVar(1);
-    // QAddition qad = new QAddition (new QMult(new QValue(-4,3), q), new QValue(-4,3));
-    // QAddition qad1 = new QAddition(new QValue(-3,1), new QValue(3,1));
-    // QValue q = new QValue(-400,4);
-    // System.out.println (qad.simplify());
-    // return new Answer.MAYBE("not implemented yet.");
   }
 
   /**

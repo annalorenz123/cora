@@ -7,18 +7,18 @@ public class LinearInequalityGeneratorToFile {
 
     public static void main(String[] args) {
         // Set the ranges for the number of variables and inequalities
-        int minVariables = 1;
-        int maxVariables = 3;
-        int minInequalities = 1;
-        int maxInequalities = 3;
+        int minVariables = 5;
+        int maxVariables = 5;
+        int minInequalities = 5;
+        int maxInequalities = 5;
 
         // Define the range for coefficients and right-hand side values
-        int minValue = -31;
-        int maxValue = 31;
+        int minValue = -50;
+        int maxValue = 50;
 
         // Number of files to generate
-        int numFiles = 10;
-        String folderName = "testing/bitblasting_harder";
+        int numFiles = 50;
+        String folderName = "testing/exactly5var5inequal50coeff";
 
         // Create the folder if it does not exist
         File folder = new File(folderName);
@@ -49,6 +49,7 @@ public class LinearInequalityGeneratorToFile {
                     // Create the left-hand side of the inequality
                     for (int j = 1; j <= numVariables; j++) {
                         int coefficient = random.nextInt(maxValue - minValue + 1) + minValue; // Random integer coefficient between -1000 and 1000
+                        while (coefficient ==0) coefficient = random.nextInt(maxValue - minValue + 1) + minValue;
                         inequality.append(coefficient).append("*x").append(j);
                         if (j < numVariables) {
                             inequality.append(" + ");
@@ -70,12 +71,7 @@ public class LinearInequalityGeneratorToFile {
                         inequalities.append(" /\\ ");
                     }
                 }
-
-                // // Add constraints for variables being >= 1 (e.g., x1 >= 1)
-                // for (int i = 1; i <= numVariables; i++) {
-                //     inequalities.append(" /\\ x").append(i).append(" >= 1");
-                // }
-
+                
                 // Write the generated inequalities to the file
                 writer.write(inequalities.toString());
                 System.out.println("Inequalities written to file: " + fileName);

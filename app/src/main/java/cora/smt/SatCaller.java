@@ -17,29 +17,7 @@ public class SatCaller {
             
             // Get the output from the process (for example, SAT/UNSAT status)
             BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String line;
-            String cpuTime = null;  // Variable to hold the extracted CPU time
-            
-            // Prepare the file and writer to append CPU time
-            File file = new File("timeminisat.csv");
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter(file, true))) {
-                while ((line = reader.readLine()) != null) {
-                    System.out.println(line);  // Print SAT/UNSAT status
 
-                    // Check for the line containing CPU time
-                    if (line.contains("CPU time")) {
-                        cpuTime = extractCpuTime(line); // Extract CPU time
-                        if (cpuTime != null) {
-                            writer.write(cpuTime); // Append CPU time to the file
-                            writer.newLine(); // Add a newline after each CPU time entry
-                        }
-                    }
-                }
-            } catch (IOException e) {
-                System.err.println("An error occurred while writing to the file: " + e.getMessage());
-            }
-            
-            // Wait for the process to finish and capture the exit code
             int exitCode = process.waitFor();
             if (exitCode == 0) {
                 System.out.println("MiniSat finished successfully.");
@@ -50,23 +28,6 @@ public class SatCaller {
             e.printStackTrace();
         }
     }
-    
-    private static String extractCpuTime(String line) {
-        // Updated regular expression to capture both integer and floating-point CPU time
-        String regex = "CPU time\\s+:\\s+([0-9]*\\.?[0-9]+)\\s+s";
-        Pattern pattern = Pattern.compile(regex);
-        Matcher matcher = pattern.matcher(line);
-
-        // If a match is found, return the CPU time formatted as requested
-        if (matcher.find()) {
-            String cpuTime = matcher.group(1);
-            return cpuTime + ", ";  // Return the CPU time with a comma and space
-        }
-
-        return null;  // Return null if no match is found
-    }
-
-
 
     public static void callKissat(String dimacsFilePath, String outputFilePath) {
         outputFilePath = "outputRobust.txt";
@@ -95,20 +56,6 @@ public class SatCaller {
             }
             extractResultAndValuation("outputRobust.txt", "output.txt");
         } catch (IOException | InterruptedException e) {
-            e.printStackTrace();
-        }
-        try {
-            String filePath = "outputRobust.txt";
-            String processTime = CnfToDimacs.extractProcessTimeKissat(filePath);
-            File file = new File("timekissat.csv");
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter(file, true))) {
-                // Append the line and a newline character
-                writer.write(processTime);
-            }
-            catch (IOException e) {
-                System.err.println("An error occurred while writing to the file: " + e.getMessage());
-            }
-        } catch (IOException e) {
             e.printStackTrace();
         }
     }
@@ -154,5 +101,37 @@ public class SatCaller {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public static String getFifthToLastLine(String filePath) throws IOException {
+        try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
+            String line = null;
+            int lineCount = 0;
+
+            // First pass: Count the total number of lines
+            while (reader.readLine() != null) {
+                lineCount++;
+            }
+
+            // Second pass: Skip (lineCount - 5) lines and read the 5th-to-last line
+            reader.close();
+            try (BufferedReader reader2 = new BufferedReader(new FileReader(filePath))) {
+                for (int i = 0; i < lineCount - 5; i++) {
+                    reader2.readLine();
+                }
+                return extractNumber(reader2.readLine()); // Return the 5th-to-last line
+            }
+        }
+
+    }
+    private static String extractNumber(String line) {
+        // Regular expression to match the number in the format we want (e.g., 0.52)
+        Pattern pattern = Pattern.compile("\\s([0-9]+\\.[0-9]+)\\s");
+        Matcher matcher = pattern.matcher(line);
+
+        if (matcher.find()) {
+            return matcher.group(1); // Return the matched number
+        }
+        return null; // Return null if no number is found
     }
 }
