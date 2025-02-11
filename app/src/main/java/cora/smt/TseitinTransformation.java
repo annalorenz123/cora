@@ -33,7 +33,7 @@ public class TseitinTransformation{
     public static boolean onlyVariables (Constraint c){
         if (c instanceof Conjunction con){
             for (int i =1; i <= con.numChildren(); i++){
-                if (!(con.queryChild(i) instanceof BVar)){
+                if (!(con.queryChild(i) instanceof BVar || (con.queryChild(i) instanceof Not n && n.queryChild() instanceof BVar))){
                     return false;
                 }
             }
@@ -41,13 +41,13 @@ public class TseitinTransformation{
         }
         if (c instanceof Disjunction d){
             for (int i =1; i <= d.numChildren(); i++){
-                if (!(d.queryChild(i) instanceof BVar)){
+                if (!(d.queryChild(i) instanceof BVar || (d.queryChild(i) instanceof Not n2 && n2.queryChild() instanceof BVar))){
                     return false;
                 }
             }
             return true;
         }
-        else throw new Error (c + " not supported in onlyVariables");
+        else throw new Error (c + " not supported in onlyVariables.");
     }
 
     public static ArrayList<Constraint> replaceSubFormulaForVar (SmtProblem problem, BVar previousVar, Constraint c){
@@ -77,7 +77,7 @@ public class TseitinTransformation{
             }
             ArrayList<Constraint> args = new ArrayList<>();
             for (int i = 1; i <= con.numChildren(); i++){
-                if (con.queryChild(i) instanceof BVar) args.add(con.queryChild(i) );
+                if (con.queryChild(i) instanceof BVar) args.add(con.queryChild(i));
                 else if (con.queryChild(i)  instanceof Conjunction || con.queryChild(i) instanceof Disjunction || con.queryChild(i)  instanceof Not){
                     BVar newvar = problem.createBooleanVariable();
                     args.add(newvar);
