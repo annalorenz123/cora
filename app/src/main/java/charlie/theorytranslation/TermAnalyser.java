@@ -31,7 +31,7 @@ public class TermAnalyser {
   private static Random _rnd = new Random();
 
   public sealed interface Result {
-    public record YES(Substitution subts) implements Result {}
+    public record YES(Substitution subst) implements Result {}
     public record NO() implements Result {}
     public record MAYBE(String reason) implements Result {}
   }
@@ -92,7 +92,8 @@ public class TermAnalyser {
               ret.extend(x, TheoryFactory.createValue(val.queryBoolAssignment(x.queryIndex())));
             }
             else if (x.queryType().equals(TypeFactory.intSort)) {
-              ret.extend(x, TheoryFactory.createValue(val.queryIntAssignment(x.queryIndex())));
+              IVar v = translator.getIntegerVariableFor(x);
+              ret.extend(x, TheoryFactory.createValue(val.queryIntAssignment(v.queryIndex())));
             }
           }
           yield new Result.YES(ret);

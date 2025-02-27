@@ -39,6 +39,12 @@ public class SmtFactory {
     return new Addition(arg1, arg2);
   }
 
+  public static IntegerExpression createAddition(List<IntegerExpression> args) {
+    if (args.size() < 2) throw new NullStorageException("Addition", "right argument");
+    return new Addition(args);
+  }
+
+
   public static IntegerExpression createMultiplication(int num, IntegerExpression arg) {
     if (arg == null) throw new NullStorageException("Multiplication", "non-constant argument");
     return new Multiplication(new IValue(num), arg);
@@ -65,6 +71,11 @@ public class SmtFactory {
     if (arg1 == null) throw new NullStorageException("Modulo", "left argument");
     if (arg2 == null) throw new NullStorageException("Modulo", "right argument");
     return new Modulo(arg1, arg2);
+  }
+
+  /** Creates a boolean variable with an index that has not yet been used. */
+  public static BVar createBooleanVariable(SmtProblem problem, String name) {
+    return problem.createBooleanVariable(name);
   }
 
   /** Creates a boolean variable with an index that has not yet been used. */
@@ -150,6 +161,20 @@ public class SmtFactory {
     return new Conjunction(a, b);
   }
 
+  public static Constraint createConjunction(List<Constraint> args) {
+    if (args == null) throw new NullStorageException("Conjunction", "argument list");
+    for (int i = 0; i < args.size(); i++) {
+      if (args.get(i) == null) {
+        throw new NullStorageException("Conjunction", "argument " + (i+1));
+      }
+    }
+    if (args.size() == 0) return new Falsehood();
+    if (args.size() == 1) return args.get(0);
+
+
+    return new Conjunction(args);
+  }
+
   public static Constraint createDisjunction(Constraint a, Constraint b) {
     if (a == null) throw new NullStorageException("Disjunction", "left argument");
     if (b == null) throw new NullStorageException("Disjunction", "right argument");
@@ -165,6 +190,8 @@ public class SmtFactory {
     }
     if (args.size() == 0) return new Falsehood();
     if (args.size() == 1) return args.get(0);
+
+
     return new Disjunction(args);
   }
 

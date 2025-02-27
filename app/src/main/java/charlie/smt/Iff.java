@@ -66,5 +66,9 @@ public final class Iff extends Constraint {
   public boolean equals(Constraint other) {
     return (other instanceof Iff o) && (_left.equals(o._left)) && (_right.equals(o._right));
   }
+
+  public Constraint simplify(){
+    return this;
+  }
 }
 

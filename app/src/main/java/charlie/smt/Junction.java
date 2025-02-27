@@ -36,7 +36,7 @@ abstract sealed class Junction extends Constraint permits Conjunction, Disjuncti
     for (int i = 0; i < args.size(); i++) addChild(args.get(i));
   }
 
-  private void addChild(Constraint child) {
+  public void addChild(Constraint child) {
     if (child instanceof Junction j && j.symbol().equals(symbol())) {
       for (int i = 1; i <= j.numChildren(); i++) _children.add(j.queryChild(i));
     }
@@ -52,6 +52,10 @@ abstract sealed class Junction extends Constraint permits Conjunction, Disjuncti
       throw new IndexingException("Junction", "queryChild", index, 1, _children.size());
     }
     return _children.get(index-1);
+  }
+
+  public ArrayList<Constraint> queryChildren (){
+    return _children;
   }
 
   public void addToSmtString(StringBuilder builder) {

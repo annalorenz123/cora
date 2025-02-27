@@ -24,6 +24,8 @@ public sealed abstract class Constraint
    */
   public abstract boolean evaluate(Valuation val);
 
+  public abstract Constraint simplify();
+
   /** Adds the SMT description of the current constraint to the given string builder. */
   public abstract void addToSmtString(StringBuilder builder);
 
